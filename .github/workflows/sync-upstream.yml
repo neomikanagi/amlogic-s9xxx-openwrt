@@ -29,6 +29,7 @@ jobs:
           mkdir -p backup
           cp config/openwrt-main/config backup/config 2>/dev/null || true
           cp config/openwrt-main/diy-part2.sh backup/diy-part2.sh 2>/dev/null || true
+          cp diy-part1.sh backup/diy-part1.sh 2>/dev/null || true
 
       - name: Merge Upstream Changes
         run: |
@@ -37,6 +38,7 @@ jobs:
           # 恢复排除的文件
           cp backup/config config/openwrt-main/config 2>/dev/null || true
           cp backup/diy-part2.sh config/openwrt-main/diy-part2.sh 2>/dev/null || true
+          cp backup/diy-part1.sh diy-part1.sh 2>/dev/null || true
           # 清理备份文件夹
           rm -rf backup
 
@@ -53,5 +55,5 @@ jobs:
         if: steps.check_changes.outputs.changes == 'true'
         run: |
           git add .
-          git commit -m "Sync with upstream ophub/amlogic-s9xxx-openwrt, exclude config and diy-part2.sh"
+          git commit -m "Sync with upstream ophub/amlogic-s9xxx-openwrt, exclude config, diy-part2.sh, and diy-part1.sh"
           git push https://x-access-token:${{ secrets.GH_TOKEN }}@github.com/neomikanagi/amlogic-s9xxx-openwrt.git main
