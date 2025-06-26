@@ -1,0 +1,57 @@
+name: Sync Upstream Repository
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # 每天 UTC 时间 00:00 运行（北京时间 08:00）
+  workflow_dispatch: # 支持手动触发
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 获取完整历史记录以便合并
+
+      - name: Set Git Identity
+        run: |
+          git config user.name "GitHub Actions Bot"
+          git config user.email "actions@users.noreply.github.com"
+
+      - name: Add Upstream Remote
+        run: |
+          git remote add upstream https://github.com/ophub/amlogic-s9xxx-openwrt.git
+          git fetch upstream
+
+      - name: Backup Excluded Files
+        run: |
+          mkdir -p backup
+          cp config/openwrt-main/config backup/config 2>/dev/null || true
+          cp config/openwrt-main/diy-part2.sh backup/diy-part2.sh 2>/dev/null || true
+
+      - name: Merge Upstream Changes
+        run: |
+          git checkout main
+          git merge upstream/main --allow-unrelated-histories -X theirs || true
+          # 恢复排除的文件
+          cp backup/config config/openwrt-main/config 2>/dev/null || true
+          cp backup/diy-part2.sh config/openwrt-main/diy-part2.sh 2>/dev/null || true
+          # 清理备份文件夹
+          rm -rf backup
+
+      - name: Check for Changes
+        id: check_changes
+        run: |
+          if git status --porcelain | grep .; then
+            echo "changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "changes=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Push Changes
+        if: steps.check_changes.outputs.changes == 'true'
+        run: |
+          git add .
+          git commit -m "Sync with upstream ophub/amlogic-s9xxx-openwrt, exclude config and diy-part2.sh"
+          git push https://x-access-token:${{ secrets.GH_TOKEN }}@github.com/neomikanagi/amlogic-s9xxx-openwrt.git main
