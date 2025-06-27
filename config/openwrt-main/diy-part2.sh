@@ -29,6 +29,9 @@ git clone https://github.com/ophub/luci-app-amlogic.git package/luci-app-amlogic
 
 rm -rf package/luci-app-homeproxy
 git clone https://github.com/immortalwrt/homeproxy.git package/luci-app-homeproxy
+
+rm -rf package/luci-app-ddns-go
+git clone https://github.com/sirpdboy/luci-app-ddns-go package/luci-app-ddns-go
 #
 # Apply patch
 # git apply ../config/patches/{0001*,0002*}.patch --directory=feeds/luci
