@@ -26,6 +26,9 @@ sed -i 's/192.168.1.1/192.168.128.2/g' package/base-files/files/bin/config_gener
 # Add luci-app-amlogic
 rm -rf package/luci-app-amlogic
 git clone https://github.com/ophub/luci-app-amlogic.git package/luci-app-amlogic
+
+rm -rf package/luci-app-homeproxy
+git clone https://github.com/immortalwrt/homeproxy.git package/luci-app-homeproxy
 #
 # Apply patch
 # git apply ../config/patches/{0001*,0002*}.patch --directory=feeds/luci
