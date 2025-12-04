@@ -9,7 +9,7 @@
 # ------------------------------- Main source started -------------------------------
 #
 # Set default IP address
-default_ip="192.168.1.1"
+default_ip="10.10.10.1"
 ip_regex="^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"
 # Modify default IP if an argument is provided and it matches the IP format
 [[ -n "${1}" && "${1}" != "${default_ip}" && "${1}" =~ ${ip_regex} ]] && {
@@ -25,6 +25,19 @@ sed -i "s|DISTRIB_REVISION='.*'|DISTRIB_REVISION='R$(date +%Y.%m.%d)'|g" package
 echo "DISTRIB_SOURCEREPO='github.com/openwrt/openwrt'" >>package/base-files/files/etc/openwrt_release
 echo "DISTRIB_SOURCECODE='openwrt'" >>package/base-files/files/etc/openwrt_release
 echo "DISTRIB_SOURCEBRANCH='main'" >>package/base-files/files/etc/openwrt_release
+
+# 删除 'type' 为 'bridge' 的定义行
+sed -i "/set network.lan.type='bridge'/d" package/base-files/files/bin/config_generate
+# 强制将 LAN 接口指定为 eth0 (防止默认为 br-lan 或其他)
+sed -i "s/set network.lan.device='.*'/set network.lan.device='eth0'/g" package/base-files/files/bin/config_generate
+
+# 6. 自定义 NTP 时间服务器 
+sed -i "s/0.openwrt.pool.ntp.org/time.windows.com/g" package/base-files/files/bin/config_generate
+sed -i "s/1.openwrt.pool.ntp.org/time.apple.com/g" package/base-files/files/bin/config_generate
+sed -i "s/2.openwrt.pool.ntp.org/time.google.com/g" package/base-files/files/bin/config_generate
+sed -i "s/3.openwrt.pool.ntp.org/time.aws.com/g" package/base-files/files/bin/config_generate
+sed -i "/add_list system.ntp.server='time.aws.com'/a \ \ \ \ \ \ \ \ add_list system.ntp.server='time.cloudflare.com'" package/base-files/files/bin/config_generate
+
 #
 # ------------------------------- Main source ends -------------------------------
 
@@ -33,6 +46,13 @@ echo "DISTRIB_SOURCEBRANCH='main'" >>package/base-files/files/etc/openwrt_releas
 # Add luci-app-amlogic
 rm -rf package/luci-app-amlogic
 git clone https://github.com/ophub/luci-app-amlogic.git package/luci-app-amlogic
+
+git clone https://github.com/immortalwrt/homeproxy.git package/homeproxy
+
+git clone --depth 1 https://github.com/sirpdboy/sirpdboy-package.git /tmp/sirpdboy-package
+cp -r /tmp/sirpdboy-package/luci-app-ddns-go package/luci-app-ddns-go
+cp -r /tmp/sirpdboy-package/ddns-go package/ddns-go
+rm -rf /tmp/sirpdboy-package
 #
 # Apply patch
 # git apply ../config/patches/{0001*,0002*}.patch --directory=feeds/luci
