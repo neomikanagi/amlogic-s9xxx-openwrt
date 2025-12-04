@@ -47,12 +47,11 @@ sed -i "/add_list system.ntp.server='time.aws.com'/a \ \ \ \ \ \ \ \ add_list sy
 rm -rf package/luci-app-amlogic
 git clone https://github.com/ophub/luci-app-amlogic.git package/luci-app-amlogic
 
+rm -rf package/homeproxy
 git clone https://github.com/immortalwrt/homeproxy.git package/homeproxy
 
-git clone --depth 1 https://github.com/sirpdboy/sirpdboy-package.git /tmp/sirpdboy-package
-cp -r /tmp/sirpdboy-package/luci-app-ddns-go package/luci-app-ddns-go
-cp -r /tmp/sirpdboy-package/ddns-go package/ddns-go
-rm -rf /tmp/sirpdboy-package
+rm -rf package/ddns-go
+git clone https://github.com/sirpdboy/luci-app-ddns-go.git package/ddns-go
 #
 # Apply patch
 # git apply ../config/patches/{0001*,0002*}.patch --directory=feeds/luci
