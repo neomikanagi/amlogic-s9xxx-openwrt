@@ -26,11 +26,6 @@ echo "DISTRIB_SOURCEREPO='github.com/openwrt/openwrt'" >>package/base-files/file
 echo "DISTRIB_SOURCECODE='openwrt'" >>package/base-files/files/etc/openwrt_release
 echo "DISTRIB_SOURCEBRANCH='main'" >>package/base-files/files/etc/openwrt_release
 
-# 删除 'type' 为 'bridge' 的定义行
-sed -i "/set network.lan.type='bridge'/d" package/base-files/files/bin/config_generate
-# 强制将 LAN 接口指定为 eth0 (防止默认为 br-lan 或其他)
-sed -i "s/set network.lan.device='.*'/set network.lan.device='eth0'/g" package/base-files/files/bin/config_generate
-
 # 6. 自定义 NTP 时间服务器 
 sed -i "s/0.openwrt.pool.ntp.org/time.windows.com/g" package/base-files/files/bin/config_generate
 sed -i "s/1.openwrt.pool.ntp.org/time.apple.com/g" package/base-files/files/bin/config_generate
