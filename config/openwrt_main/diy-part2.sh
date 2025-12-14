@@ -48,6 +48,16 @@ fi
 # Add luci-app-amlogic
 rm -rf package/luci-app-amlogic
 git clone https://github.com/ophub/luci-app-amlogic.git package/luci-app-amlogic
+rm -rf package/homeproxy
+git clone https://github.com/immortalwrt/homeproxy.git package/homeproxy
+rm -rf package/ddns-go
+git clone https://github.com/sirpdboy/luci-app-ddns-go.git package/ddns-go
+
+sed -i "s/0.openwrt.pool.ntp.org/time.windows.com/g" package/base-files/files/bin/config_generate
+sed -i "s/1.openwrt.pool.ntp.org/time.apple.com/g" package/base-files/files/bin/config_generate
+sed -i "s/2.openwrt.pool.ntp.org/time.google.com/g" package/base-files/files/bin/config_generate
+sed -i "s/3.openwrt.pool.ntp.org/time.aws.com/g" package/base-files/files/bin/config_generate
+sed -i "/add_list system.ntp.server='time.aws.com'/a \ \ \ \ \ \ \ \ add_list system.ntp.server='time.cloudflare.com'" package/base-files/files/bin/config_generate
 #
 # Apply patch
 # git apply ../config/patches/{0001*,0002*}.patch --directory=feeds/luci
