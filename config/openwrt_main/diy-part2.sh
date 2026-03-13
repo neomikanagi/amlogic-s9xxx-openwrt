@@ -9,7 +9,7 @@
 # ------------------------------- Main source started -------------------------------
 #
 # Set default IP address
-default_ip="192.168.1.1"
+default_ip="10.10.10.1"
 ip_regex="^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"
 # Modify default IP if an argument is provided and it matches the IP format
 [[ -n "${1}" && "${1}" != "${default_ip}" && "${1}" =~ ${ip_regex} ]] && {
@@ -48,6 +48,15 @@ fi
 # Add luci-app-amlogic
 rm -rf package/luci-app-amlogic
 git clone https://github.com/ophub/luci-app-amlogic.git package/luci-app-amlogic
+
+rm -rf package/homeproxy
+git clone https://github.com/immortalwrt/homeproxy.git package/homeproxy
+
+sed -i "s/0.openwrt.pool.ntp.org/time.windows.com/g" package/base-files/files/bin/config_generate
+sed -i "s/1.openwrt.pool.ntp.org/time.apple.com/g" package/base-files/files/bin/config_generate
+sed -i "s/2.openwrt.pool.ntp.org/time.google.com/g" package/base-files/files/bin/config_generate
+sed -i "s/3.openwrt.pool.ntp.org/time.aws.com/g" package/base-files/files/bin/config_generate
+sed -i "/add_list system.ntp.server='time.aws.com'/a \ \ \ \ \ \ \ \ add_list system.ntp.server='time.cloudflare.com'" package/base-files/files/bin/config_generate
 #
 # Apply patch
 # git apply ../config/patches/{0001*,0002*}.patch --directory=feeds/luci
