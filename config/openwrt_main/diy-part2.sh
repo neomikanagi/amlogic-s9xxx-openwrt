@@ -58,16 +58,6 @@ sed -i "s/2.openwrt.pool.ntp.org/time.google.com/g" package/base-files/files/bin
 sed -i "s/3.openwrt.pool.ntp.org/time.aws.com/g" package/base-files/files/bin/config_generate
 sed -i "/add_list system.ntp.server='time.aws.com'/a \ \ \ \ \ \ \ \ add_list system.ntp.server='time.cloudflare.com'" package/base-files/files/bin/config_generate
 
-mkdir -p package/base-files/files/etc/uci-defaults
-cat << "EOF" > package/base-files/files/etc/uci-defaults/99-init-zram
-#!/bin/sh
-uci set system.@system[0].zram_comp_algo='zstd'
-uci set system.@system[0].zram_size_mb='0'
-uci commit system
-exit 0
-EOF
-chmod +x package/base-files/files/etc/uci-defaults/99-init-zram
-
 #
 # Apply patch
 # git apply ../config/patches/{0001*,0002*}.patch --directory=feeds/luci
