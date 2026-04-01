@@ -50,7 +50,7 @@ rm -rf package/luci-app-amlogic
 git clone https://github.com/ophub/luci-app-amlogic.git package/luci-app-amlogic
 
 rm -rf package/homeproxy
-git clone [https://github.com/immortalwrt/homeproxy.git](https://github.com/immortalwrt/homeproxy.git) package/homeproxy
+git clone https://github.com/immortalwrt/homeproxy.git package/homeproxy
 
 sed -i "s/0.openwrt.pool.ntp.org/[time.windows.com/g](https://time.windows.com/g)" package/base-files/files/bin/config_generate
 sed -i "s/1.openwrt.pool.ntp.org/[time.apple.com/g](https://time.apple.com/g)" package/base-files/files/bin/config_generate
