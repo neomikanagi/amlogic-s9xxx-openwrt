@@ -12,18 +12,26 @@
 
 ## 官方更新后如何同步
 
-在仓库根目录：
+### 本地
 
 ```bash
 git fetch upstream main
-./config/openwrt_main/sync-from-upstream.sh
+./sync-upstream.sh
+# 或 ./sync-upstream.sh --fetch
 ```
 
-或一步：
+### 云端（GitHub Actions，推荐）
 
-```bash
-./config/openwrt_main/sync-from-upstream.sh --fetch
-```
+仓库已包含工作流 **Sync upstream openwrt_main**（`.github/workflows/sync-upstream-config.yml`）：
+
+| 触发方式 | 说明 |
+|----------|------|
+| **每周一 14:00 北京时间** | 自动 `fetch` 官方 → `merge` → 应用 `custom-packages.conf` → 有变更则 `push` |
+| **手动** | GitHub → Actions → *Sync upstream openwrt_main* → Run workflow |
+
+手动运行时可选 **合并官方全仓库**（默认开启）：拉取新机型、内核脚本、workflow 等；关闭则仅重跑 config 定制（不 merge）。
+
+**前提**：仓库 Settings → Actions → General → Workflow permissions 选 **Read and write**。
 
 ## 定制摘要
 

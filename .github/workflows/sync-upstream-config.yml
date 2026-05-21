@@ -1,0 +1,77 @@
+# 云端自动：合并 ophub 官方 main + 拉取 openwrt_main config 并应用 custom-packages 规则
+name: Sync upstream openwrt_main
+
+on:
+  workflow_dispatch:
+    inputs:
+      merge_upstream:
+        description: "合并官方全仓库（新机型/内核/workflow 等）"
+        required: false
+        default: true
+        type: boolean
+  schedule:
+    # 每周一 06:00 UTC（北京时间 14:00）
+    - cron: "0 6 * * 1"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-upstream-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Add upstream remote
+        run: |
+          git remote remove upstream 2>/dev/null || true
+          git remote add upstream https://github.com/ophub/amlogic-s9xxx-openwrt.git
+          git fetch upstream main
+
+      - name: Merge upstream main
+        if: github.event_name == 'schedule' || github.event.inputs.merge_upstream != 'false'
+        run: |
+          git merge upstream/main -m "chore(sync): merge ophub/amlogic-s9xxx-openwrt main" -X theirs || {
+            echo "::warning::Merge had conflicts; keeping upstream (--theirs) for conflicted files"
+            git diff --name-only --diff-filter=U | while read -r f; do
+              git checkout --theirs -- "$f" 2>/dev/null || true
+            done
+            git add -A
+            git merge --continue -m "chore(sync): merge ophub main (resolve conflicts with theirs)" || true
+          }
+
+      - name: Apply openwrt_main custom config
+        run: |
+          chmod +x config/openwrt_main/sync-from-upstream.sh
+          chmod +x config/openwrt_main/apply-build-preferences.sh
+          chmod +x sync-upstream.sh 2>/dev/null || true
+          ./config/openwrt_main/sync-from-upstream.sh
+
+      - name: Commit and push
+        run: |
+          if git diff --quiet && git diff --cached --quiet; then
+            echo "No changes after sync — nothing to push."
+            exit 0
+          fi
+          git add -A
+          git status --short
+          git commit -m "$(cat <<'EOF'
+chore(sync): merge upstream and re-apply openwrt_main customizations
+
+Automated by .github/workflows/sync-upstream-config.yml
+EOF
+)"
+          git push origin HEAD:main
