@@ -68,10 +68,6 @@ jobs:
           fi
           git add -A
           git status --short
-          git commit -m "$(cat <<'EOF'
-chore(sync): merge upstream and re-apply openwrt_main customizations
-
-Automated by .github/workflows/sync-upstream-config.yml
-EOF
-)"
+          git commit -m "chore(sync): merge upstream and re-apply openwrt_main customizations" \
+            -m "Automated by .github/workflows/sync-upstream-config.yml"
           git push origin HEAD:main
