@@ -174,8 +174,8 @@ create_partition() {
     # Set partition size (Unit: MiB)
     BLANK1="16"
     BOOT="256"
-    ROOT1="960"
-    ROOT2="960"
+    ROOT1="650"
+    ROOT2="650"
 
     # Format emmc disk
     echo -e "${INFO} Creating MBR partition table..."

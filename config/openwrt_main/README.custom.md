@@ -42,3 +42,14 @@ git fetch upstream main
 - 内存：zram + zstd
 - 蓝牙：kmod-bluetooth / btusb / btsdio + bluez
 - USB 共享：华为/安卓驱动（官方已有）+ 苹果 usbmuxd
+- **EMMC A/B 根分区**：各 **650 MiB**（`build-preferences.env` 里 `EMMC_ROOT_MB`，全局非仅 N1）
+
+## 分区大小（650MB）
+
+极简固件下双系统区各 **650MB**，p4 吃掉剩余 eMMC 给 Docker。修改 `EMMC_ROOT_MB` 后执行：
+
+```bash
+./config/openwrt_main/apply-partition-sizes.sh
+```
+
+编译时 `diy-part2.sh` 还会 patch `luci-app-amlogic` 的 `openwrt-install-amlogic`。**已写入 EMMC 的设备需重装到 EMMC 才生效。**

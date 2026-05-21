@@ -86,4 +86,8 @@ if [[ -x "${CFG_DIR}/apply-build-preferences.sh" ]]; then
     "${CFG_DIR}/apply-build-preferences.sh" || true
 fi
 
+if [[ -x "${CFG_DIR}/apply-partition-sizes.sh" ]]; then
+    "${CFG_DIR}/apply-partition-sizes.sh"
+fi
+
 echo "[sync] 完成: ${CONFIG_FILE}"
