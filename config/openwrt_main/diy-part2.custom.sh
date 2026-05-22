@@ -2,12 +2,13 @@
 ROOT_MB="650"
 INSTALL_SCRIPTS=(
     package/luci-app-amlogic/luci-app-amlogic/root/usr/sbin/openwrt-install-amlogic
+    package/luci-app-amlogic/root/usr/sbin/openwrt-install-amlogic
 )
 for _f in "${INSTALL_SCRIPTS[@]}"; do
     if [[ -f "${_f}" ]]; then
         sed -i "s/^ROOT1=\"[0-9]*\"/ROOT1=\"${ROOT_MB}\"/" "${_f}"
         sed -i "s/^ROOT2=\"[0-9]*\"/ROOT2=\"${ROOT_MB}\"/" "${_f}"
-        # 安装脚本注释：最小 320MB
+        grep -q "^ROOT1=\"${ROOT_MB}\"" "${_f}" || echo "WARN: ROOT1 patch failed on ${_f}"
         echo "Patched EMMC ROOT1/ROOT2=${ROOT_MB} in ${_f}"
     fi
 done

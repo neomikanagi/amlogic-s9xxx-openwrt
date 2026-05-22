@@ -52,4 +52,4 @@ git fetch upstream main
 ./config/openwrt_main/apply-partition-sizes.sh
 ```
 
-编译时 `diy-part2.sh` 还会 patch `luci-app-amlogic` 的 `openwrt-install-amlogic`。**已写入 EMMC 的设备需重装到 EMMC 才生效。**
+编译时 `diy-part2.sh` 会 patch 源码包；**打包时 `remake` 在下载 luci-app-amlogic 脚本后再次改为 650**。Actions 打包须用本仓库 `./`（非 `ophub@main`）。**已写入 EMMC 的设备需用新固件重装到 EMMC 才生效**（不能只 sysupgrade）。

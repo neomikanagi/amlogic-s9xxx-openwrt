@@ -32,3 +32,10 @@ if [[ -f "${AW}" ]]; then
     sed -i "s/^    ROOT1=\"[0-9]*\"/    ROOT1=\"${ROOT_MB}\"/" "${AW}"
     sed -i "s/^    ROOT2=\"[0-9]*\"/    ROOT2=\"${ROOT_MB}\"/" "${AW}"
 fi
+
+# 若 common-files 里已有安装脚本（本地预置），一并 patch
+AML="${ROOT_DIR}/make-openwrt/openwrt-files/common-files/usr/sbin/openwrt-install-amlogic"
+if [[ -f "${AML}" ]]; then
+    sed -i "s/^ROOT1=\"[0-9]*\"/ROOT1=\"${ROOT_MB}\"/" "${AML}"
+    sed -i "s/^ROOT2=\"[0-9]*\"/ROOT2=\"${ROOT_MB}\"/" "${AML}"
+fi
