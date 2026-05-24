@@ -37,7 +37,7 @@ git fetch upstream main
 
 - 默认 LAN：`10.10.10.1`
 - 代理：HomeProxy + sing-box（不用 momo / passwall）
-- 容器：docker + dockerd + dockerman + lxc
+- 容器：docker + dockerd + dockerman + lxc（含 lxc-common / lxc-start / lxc-stop / lxc-destroy / lxc-autostart / lxc-info / lxc-ls CLI）
 - 关闭：samba4、attendedsysupgrade、ddns、frp
 - 内存：zram + zstd
 - 蓝牙：kmod-bluetooth / btusb / btsdio + bluez
