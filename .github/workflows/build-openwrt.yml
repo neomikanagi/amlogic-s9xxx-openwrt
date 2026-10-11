@@ -134,7 +134,7 @@ jobs:
 
           # board names: every token must be a group keyword or a BOARD of model_database.conf
           db="make-openwrt/openwrt-files/common-files/etc/model_database.conf"
-          boards="$(grep -E '^[0-9]' "${db}" | awk -F: '{gsub(/ /,"",$14); print $14}' | sort -u)"
+          boards="$(grep -E '^[^#[:space:]]' "${db}" | awk -F: '{gsub(/ /,"",$14); print $14}' | sort -u)"
           bad=0
           for b in ${OPENWRT_BOARD//_/ }; do
             [[ "${b}" =~ ^(all|amlogic|rockchip|allwinner|(amlogic|rockchip|allwinner)[0-9]+(_[0-9]+)?|first[0-9]+|last[0-9]+|range[0-9]+_[0-9]+)$ ]] && continue
