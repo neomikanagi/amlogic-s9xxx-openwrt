@@ -1,0 +1,7 @@
+# Upstream paths this fork does not want. They are removed again after every sync.
+# (A new file upstream adds somewhere else comes in, which is what "follow upstream" means.)
+README.cn.md
+config/docker
+config/imagebuilder
+config/lede_master
+config/immortalwrt_master

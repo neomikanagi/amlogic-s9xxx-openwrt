@@ -1,0 +1,10 @@
+# Paths that belong to this fork. scripts/sync-upstream.sh never takes them from upstream: they
+# stay exactly as they are here, whatever upstream does with a file of the same name.
+# One top-level path (file or directory) per line.
+.github/workflows
+.sync
+custom
+files
+scripts
+README.md
+HANDOFF.md

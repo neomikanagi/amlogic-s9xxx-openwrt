@@ -27,6 +27,9 @@ REQUIRE_IMAGE_METADATA=0
 
 OPHUB_ENV=/tmp/ophub-upgrade.env
 OPHUB_WORK=/tmp/ophub-work
+# (overridable so that custom/scripts/test-upgrade.sh can run the logic against loop devices)
+OPHUB_RELEASE="${OPHUB_RELEASE:-/etc/ophub-release}"
+OPHUB_LIVE_BOOT="${OPHUB_LIVE_BOOT:-/boot}"
 
 # extra programs for the temporary ramfs root (stage2 skips the missing ones)
 RAMFS_COPY_BIN="blkid btrfs fatlabel e2label"
@@ -107,10 +110,10 @@ platform_check_image() {
 
 	[ "$#" -gt 1 ] && return 1
 
-	rel=/etc/ophub-release
+	rel="$OPHUB_RELEASE"
 	[ -s "$rel" ] || rel=/etc/flippy-openwrt-release
 	[ -s "$rel" ] || {
-		ophub_err "/etc/ophub-release is missing, this is not an image built by this repository"
+		ophub_err "$OPHUB_RELEASE is missing, this is not an image built by this repository"
 		return 1
 	}
 	PLATFORM="$(ophub_conf_get "$rel" PLATFORM)"
@@ -145,6 +148,7 @@ platform_check_image() {
 	nvme*) disk_type=NVME ;;
 	*) disk_type=UNKNOWN ;;
 	esac
+	[ -n "$OPHUB_TEST_DISK_TYPE" ] && disk_type="$OPHUB_TEST_DISK_TYPE"
 
 	# the image must be a disk image ...
 	ophub_image_partmap "$img" || {
@@ -195,7 +199,7 @@ platform_check_image() {
 
 	# the DTB picked at install time (Amlogic): keep it across upgrades
 	old_fdt=""
-	[ -f /boot/uEnv.txt ] && old_fdt="$(sed -n 's/^FDT=//p' /boot/uEnv.txt | head -n 1)"
+	[ -f "$OPHUB_LIVE_BOOT/uEnv.txt" ] && old_fdt="$(sed -n 's/^FDT=//p' "$OPHUB_LIVE_BOOT/uEnv.txt" | head -n 1)"
 
 	cat >"$OPHUB_ENV" <<EOF
 OP_PLATFORM='$PLATFORM'

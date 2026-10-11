@@ -1,0 +1,12 @@
+# Upstream files that custom/ patches or depends on. When a sync changes one of them the
+# sync workflow re-checks the patches at once (scripts/check-patches.sh) and starts a build.
+make-openwrt/openwrt-files/common-files/usr/sbin/openwrt-tf
+make-openwrt/openwrt-files/common-files/usr/sbin/openwrt-swap
+make-openwrt/openwrt-files/common-files/etc/custom_service/start_service.sh
+make-openwrt/openwrt-files/common-files/etc/profile.d/30-sysinfo.sh
+make-openwrt/openwrt-files/common-files/etc/config/amlogic
+config/openwrt_main/config
+config/openwrt_main/diy-part1.sh
+config/openwrt_main/diy-part2.sh
+remake
+action.yml
