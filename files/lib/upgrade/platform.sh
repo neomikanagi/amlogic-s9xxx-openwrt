@@ -102,6 +102,21 @@ ophub_conf_get() {
 	sed -n -e "s/^$2=['\"]\{0,1\}\([^'\"]*\)['\"]\{0,1\}\$/\1/p" "$1" 2>/dev/null | head -n 1
 }
 
+# <type> <options> <device> <dir>: the old root may still be on its way out of the kernel
+ophub_mount() {
+	local i=0
+	while [ "$i" -lt 5 ]; do
+		if [ -n "$2" ]; then
+			mount -t "$1" -o "$2" "$3" "$4" 2>/dev/null && return 0
+		else
+			mount -t "$1" "$3" "$4" 2>/dev/null && return 0
+		fi
+		i=$((i + 1))
+		sleep 2
+	done
+	return 1
+}
+
 # ------------------------------------------------------- check (live system) ---
 
 platform_check_image() {
@@ -319,7 +334,7 @@ platform_do_upgrade() {
 		return 1
 	}
 
-	if mount -t btrfs -o compress=zstd:6 "$OP_ROOT_DEV" "$newroot"; then
+	if ophub_mount btrfs compress=zstd:6 "$OP_ROOT_DEV" "$newroot"; then
 		ophub_fix_rootfs "$newroot" || rc=1
 		umount "$newroot"
 	else
@@ -335,7 +350,7 @@ platform_do_upgrade() {
 
 	fstype="$(blkid -o value -s TYPE "$OP_BOOT_DEV" 2>/dev/null)"
 	[ -n "$fstype" ] || fstype=vfat
-	if mount -t "$fstype" "$OP_BOOT_DEV" "$newboot"; then
+	if ophub_mount "$fstype" "" "$OP_BOOT_DEV" "$newboot"; then
 		ophub_fix_bootfs "$newboot"
 		umount "$newboot"
 	else

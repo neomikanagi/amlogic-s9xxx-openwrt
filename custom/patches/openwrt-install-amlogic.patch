@@ -34,7 +34,7 @@
  DST_TOTAL_MB=$((EMMC_SIZE / 1024 / 1024))
  
  start1=$((BLANK1 * 2048))
-@@ -360,10 +369,8 @@
+@@ -360,10 +369,10 @@
  end2=$((start2 + (ROOT1 * 2048) - 1))
  
  start3=$(((BLANK3 * 2048) + end2 + 1))
@@ -44,10 +44,12 @@
 -end4=$((DST_TOTAL_MB * 2048 - 1))
 +end3=$((DST_TOTAL_MB * 2048 - 1))
 +echo "Partition plan [MiB]: boot ${BOOT} @ ${BLANK1}, rootfs ${ROOT1}, shared data = rest ($(((end3 - start3 + 1) / 2048)))"
++[[ "${end3}" -gt "$((start3 + 256 * 2048))" ]] ||
++    error_msg "The eMMC (${DST_TOTAL_MB} MiB) is too small: boot + rootfs (${ROOT1} MiB, OPENWRT_ROOT_MB) leave less than 256 MiB for the data partition."
  
  cat >>/tmp/fdisk.script <<EOF
  n
-@@ -381,10 +388,6 @@
+@@ -381,10 +390,6 @@
  3
  $start3
  $end3
@@ -58,7 +60,7 @@
  t
  1
  c
-@@ -394,9 +397,6 @@
+@@ -394,9 +399,6 @@
  t
  3
  83
@@ -68,7 +70,7 @@
  w
  EOF
  
-@@ -419,9 +419,6 @@
+@@ -419,9 +421,6 @@
  seek=$((start3 / 2048))
  dd if=/dev/zero of=/dev/${EMMC_NAME} bs=1M count=1 seek=$seek conv=fsync
  
@@ -78,7 +80,7 @@
  #Mainline U-BOOT detection
  FLASH_MAINLINE_UBOOT=0
  if [[ -n "${MAINLINE_UBOOT}" && -f "${MAINLINE_UBOOT}" ]]; then
-@@ -484,20 +481,13 @@
+@@ -484,20 +483,13 @@
  sleep 2
  umount -f /mnt/${EMMC_NAME}p1 2>/dev/null
  
@@ -101,7 +103,7 @@
  # mount and copy
  echo "Wait for the boot file system to mount ... "
  i=1
-@@ -600,7 +590,7 @@
+@@ -600,7 +592,7 @@
          cat >etc/docker/daemon.json <<EOF
  {
    "bip": "172.31.0.1/24",
@@ -110,7 +112,7 @@
    "log-level": "warn",
    "log-driver": "json-file",
    "log-opts": {
-@@ -616,10 +606,10 @@
+@@ -616,10 +608,10 @@
  
          # change data_root value in /etc/config/dockerd
          if [[ -f "/etc/init.d/dockerman" ]] && [[ -f "/etc/config/dockerd" ]]; then
@@ -124,7 +126,7 @@
  
          echo "Edit configuration file ..."
          #cd /mnt/${EMMC_NAME}p2/usr/bin/
-@@ -679,7 +669,7 @@
+@@ -679,7 +671,7 @@
  echo "complete."
  
  echo "Create a shared file system."
@@ -133,7 +135,7 @@
  
  # When there is no input parameter, select manually
  if [[ -n "${SHARED_FSTYPE}" ]]; then
-@@ -698,23 +688,23 @@
+@@ -698,23 +690,23 @@
  fi
  case $TARGET_SHARED_FSTYPE in
  2 | btrfs)

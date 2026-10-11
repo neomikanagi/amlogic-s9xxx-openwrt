@@ -122,6 +122,19 @@ ls "${R}"/etc/modules.d/ 2>/dev/null | grep -qi 'bbr' || fail "no tcp_bbr autolo
 ls "${R}"/etc/modules.d/ 2>/dev/null | grep -qi 'zram' || fail "no zram autoload in /etc/modules.d"
 ls -d "${R}"/lib/modules/*/ >/dev/null 2>&1 || fail "no kernel modules in /lib/modules"
 
+# kernel features of the packages this fork adds: modules of ophub's kernel, not of OpenWrt's.
+# (a missing one is a warning, not an error: the kernel is not ours to change)
+KDIR="$(ls -d "${R}"/lib/modules/*/ 2>/dev/null | head -n 1)"
+if [[ -n "${KDIR}" ]]; then
+    for m in nft_tproxy tcp_bbr zram veth br_netfilter overlay macvlan tun nf_tables nft_socket btrfs; do
+        if find "${KDIR}" -name "${m}.ko*" 2>/dev/null | grep -q . || grep -qE "(^|/)${m}\.ko" "${KDIR}/modules.builtin" 2>/dev/null; then
+            :
+        else
+            echo "::warning::verify-image: kernel has no '${m}' module (nor built in): $(basename "${KDIR}")"
+        fi
+    done
+fi
+
 # this fork's patches really landed
 need_text usr/sbin/openwrt-install-amlogic 'Partition plan'
 no_text usr/sbin/openwrt-install-amlogic 'ROOTFS2'
@@ -166,7 +179,7 @@ need_text etc/fstab 'LABEL=BOOT'
 umount "${M2}"
 mount -o ro "${loop}p1" "${M1}" || { fail "cannot mount the boot partition"; exit 1; }
 B="${M1}"
-ls "${B}"/zImage "${B}"/Image 2>/dev/null | grep -q . || fail "no kernel image (zImage/Image) in the boot partition"
+[[ -e "${B}/zImage" || -e "${B}/Image" ]] || fail "no kernel image (zImage/Image) in the boot partition"
 [[ -e "${B}/uInitrd" ]] || fail "no uInitrd in the boot partition"
 [[ -d "${B}/dtb" ]] || fail "no dtb directory in the boot partition"
 cfg=""
@@ -174,9 +187,12 @@ for c in uEnv.txt extlinux/extlinux.conf armbianEnv.txt; do
     [[ -f "${B}/${c}" ]] && cfg="${cfg} ${c}"
 done
 [[ -n "${cfg}" ]] || fail "no boot configuration (uEnv.txt / extlinux.conf / armbianEnv.txt)"
+# at least one of them (the one the board's u-boot reads) must name the rootfs by its UUID
+hit=0
 for c in ${cfg}; do
-    grep -qF "${UUID2}" "${B}/${c}" || fail "${c} does not point at the rootfs UUID ${UUID2}"
+    grep -qF "${UUID2}" "${B}/${c}" && hit=1
 done
+[[ "${hit}" -eq 1 ]] || fail "none of${cfg} points at the rootfs UUID ${UUID2}"
 if [[ "${PLATFORM}" == "amlogic" ]]; then
     ls "${B}"/boot-emmc.* >/dev/null 2>&1 || fail "no boot-emmc.* scripts (the sysupgrade converts them for eMMC)"
 fi
