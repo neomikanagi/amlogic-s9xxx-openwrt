@@ -1,0 +1,38 @@
+#!/bin/sh
+# First-boot defaults.
+#
+# Guarded by a marker file that /lib/upgrade/keep.d/ophub carries over a
+# sysupgrade, so an upgrade never puts these values back over the user's own
+# settings. A factory reset (firstboot) removes the marker and applies them again.
+
+MARK=/etc/.ophub-defaults-applied
+[ -e "$MARK" ] && exit 0
+
+# zram swap is sized by /etc/init.d/zram: half of RAM unless system.zram_size_mb
+# is set, so it scales with the box - do NOT hard-code a size here.
+# zstd packs better than lzo/lz4 and these SoCs are fast enough; the init script
+# falls back to its default when the kernel does not offer the algorithm.
+uci -q set system.@system[0].zram_comp_algo='zstd'
+
+# Tokyo. (config_generate would give GMT0/UTC.)
+uci -q set system.@system[0].timezone='JST-9'
+uci -q set system.@system[0].zonename='Asia/Tokyo'
+
+# Serve time to the LAN as well as sync from upstream.
+uci -q set system.ntp.enable_server='1'
+uci -q commit system
+
+uci -q set luci.main.lang='zh_cn'
+uci -q commit luci
+
+# Bigger DNS cache: the default 150 entries turns over constantly once a few
+# clients and a proxy are asking.
+uci -q set dhcp.@dnsmasq[0].cachesize='1000'
+uci -q commit dhcp
+
+# Flow offloading is deliberately left off. Software offload moves established
+# flows into a flowtable that bypasses the netfilter path, which breaks
+# fwmark-based transparent proxying (HomeProxy). The LuCI checkbox still works.
+
+touch "$MARK"
+exit 0

@@ -1,0 +1,433 @@
+#============================================================================================
+# Build OpenWrt (official openwrt_main) for Amlogic / Rockchip / Allwinner boxes in the cloud.
+#
+#   * compiles OpenWrt `main` with config/openwrt_main/config (upstream, untouched) plus
+#     custom/openwrt_main/config.fragment (this fork: no ttyd / samba4 / frp, + docker,
+#     HomeProxy, ...) and packages it with ophub's kernel + u-boot (./remake)
+#   * images: *-sysupgrade.img.gz, single rootfs layout, see README.md
+#   * monthly (1st, 02:00 UTC) with the repository variables below, or by hand with any
+#     LAN IP / board
+#   * "repack only" skips the 2-3 hour compile and re-packages the rootfs of the last build
+#     (new LAN IP, other boards, newer ophub kernel) in about ten minutes
+#
+# Repository variables (Settings -> Secrets and variables -> Actions -> Variables) used by the
+# scheduled run: OPENWRT_IP, OPENWRT_BOARD, OPENWRT_KERNEL.
+#============================================================================================
+
+name: Build OpenWrt
+
+on:
+  schedule:
+    - cron: "0 2 1 * *"
+  repository_dispatch:
+    types: [build-openwrt]
+  workflow_dispatch:
+    inputs:
+      openwrt_ip:
+        description: "Default LAN IP address of the firmware"
+        required: false
+        default: "10.10.10.1"
+        type: string
+      openwrt_board:
+        description: "Boards, joined with _ (e.g. s905d_s912-phicomm-t1_panther-x2), or all / amlogic / rockchip / allwinner. Names: make-openwrt/openwrt-files/common-files/etc/model_database.conf, column 14"
+        required: false
+        default: "s905d_s912-phicomm-t1_panther-x2"
+        type: string
+      openwrt_kernel:
+        description: "Kernel series"
+        required: false
+        default: "6.12.y_6.18.y"
+        type: choice
+        options:
+          - 6.12.y
+          - 6.18.y
+          - 6.12.y_6.18.y
+          - 6.1.y
+          - 6.6.y
+          - 6.1.y_6.6.y
+          - 6.1.y_6.12.y
+          - 6.1.y_6.18.y
+          - 5.10.y
+          - 5.15.y
+          - 5.10.y_5.15.y
+      repack_only:
+        description: "Repack only: do not compile, reuse the rootfs of the last build (fast; use it to change IP / boards / kernel)"
+        required: false
+        default: false
+        type: boolean
+      kernel_usage:
+        description: "Kernel tag (ophub/kernel releases)"
+        required: false
+        default: "stable"
+        type: choice
+        options:
+          - stable
+          - flippy
+          - beta
+      auto_kernel:
+        description: "Use the latest kernel of the selected series"
+        required: false
+        default: true
+        type: boolean
+      use_ccache:
+        description: "Use ccache"
+        required: false
+        default: true
+        type: boolean
+      openwrt_size:
+        description: "Image partitions in MiB: boot/rootfs (boot >= 256, rootfs >= 1024)"
+        required: false
+        default: "256/1024"
+        type: string
+      openwrt_storage:
+        description: "Release kind: save (kept) or temp (removed by the cleanup workflow)"
+        required: false
+        default: "save"
+        type: choice
+        options:
+          - save
+          - temp
+      builder_name:
+        description: "Builder signature shown in the banner"
+        required: false
+        default: "neomikanagi"
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-openwrt
+  cancel-in-progress: false
+
+env:
+  TZ: Etc/UTC
+  CCACHE_DIR: /builder/openwrt/.ccache
+  SOURCE_BRANCH: openwrt_main # = config/<dir>
+  # ---- resolved inputs (a scheduled run has none: fall back to repository variables) ----
+  OPENWRT_IP: ${{ inputs.openwrt_ip || vars.OPENWRT_IP || '10.10.10.1' }}
+  OPENWRT_BOARD: ${{ inputs.openwrt_board || vars.OPENWRT_BOARD || 's905d_s912-phicomm-t1_panther-x2' }}
+  OPENWRT_KERNEL: ${{ inputs.openwrt_kernel || vars.OPENWRT_KERNEL || '6.12.y_6.18.y' }}
+  REPACK_ONLY: ${{ inputs.repack_only && 'true' || 'false' }}
+  KERNEL_USAGE: ${{ inputs.kernel_usage || 'stable' }}
+  AUTO_KERNEL: ${{ github.event_name == 'workflow_dispatch' && !inputs.auto_kernel && 'false' || 'true' }}
+  USE_CCACHE: ${{ github.event_name == 'workflow_dispatch' && !inputs.use_ccache && 'false' || 'true' }}
+  OPENWRT_SIZE: ${{ inputs.openwrt_size || '256/1024' }}
+  OPENWRT_STORAGE: ${{ inputs.openwrt_storage || 'save' }}
+  BUILDER_NAME: ${{ inputs.builder_name || 'neomikanagi' }}
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Validate the inputs
+        run: |
+          ip_regex='^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$'
+          [[ "${OPENWRT_IP}" =~ ${ip_regex} ]] || { echo "::error::'${OPENWRT_IP}' is not an IPv4 address"; exit 1; }
+
+          [[ "${OPENWRT_SIZE}" =~ ^[0-9]+/[0-9]+$ ]] || { echo "::error::openwrt_size must look like 256/1024"; exit 1; }
+          boot_mb="${OPENWRT_SIZE%%/*}"; root_mb="${OPENWRT_SIZE##*/}"
+          [[ "${boot_mb}" -ge 256 && "${root_mb}" -ge 1024 ]] || { echo "::error::boot must be >= 256 and rootfs >= 1024 MiB"; exit 1; }
+
+          # board names: every token must be a group keyword or a BOARD of model_database.conf
+          db="make-openwrt/openwrt-files/common-files/etc/model_database.conf"
+          boards="$(grep -E '^[0-9]' "${db}" | awk -F: '{gsub(/ /,"",$14); print $14}' | sort -u)"
+          bad=0
+          for b in ${OPENWRT_BOARD//_/ }; do
+            [[ "${b}" =~ ^(all|amlogic|rockchip|allwinner|(amlogic|rockchip|allwinner)[0-9]+(_[0-9]+)?|first[0-9]+|last[0-9]+|range[0-9]+_[0-9]+)$ ]] && continue
+            grep -qxF -- "${b}" <<<"${boards}" || { echo "::error::unknown board '${b}'"; bad=1; }
+          done
+          [[ "${bad}" -eq 0 ]] || { echo "Known boards:"; echo "${boards}" | tr '\n' ' '; exit 1; }
+
+          {
+            echo "### Build settings"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| LAN IP | \`${OPENWRT_IP}\` |"
+            echo "| boards | \`${OPENWRT_BOARD}\` |"
+            echo "| kernel | \`${OPENWRT_KERNEL}\` (${KERNEL_USAGE}, latest=${AUTO_KERNEL}) |"
+            echo "| partitions boot/rootfs | \`${OPENWRT_SIZE}\` MiB |"
+            echo "| mode | $([[ "${REPACK_ONLY}" == "true" ]] && echo 'repack only (no compile)' || echo 'full compile') |"
+          } >>"${GITHUB_STEP_SUMMARY}"
+
+  build:
+    needs: check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 400
+    name: build / package
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Initialize the build environment
+        id: init
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          docker rmi -f $(docker images -q) 2>/dev/null || true
+          [[ -n "${AGENT_TOOLSDIRECTORY}" ]] && sudo rm -rf "${AGENT_TOOLSDIRECTORY}"
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android 2>/dev/null
+          sudo swapoff -a
+          sudo rm -f /swapfile /mnt/swapfile
+          sudo apt-get -y update
+          sudo apt-get -y purge azure-cli ghc* zulu* llvm* firefox google* dotnet* powershell openjdk* mongodb* moby* || true
+          sudo apt-get -y install $(cat make-openwrt/scripts/ubuntu2404-make-openwrt-depends)
+          sudo systemctl daemon-reload
+          sudo apt-get -y autoremove --purge
+          sudo apt-get clean
+          sudo sed -i '/NVM_DIR/d;/skel/d' /root/{.bashrc,.profile}
+          sudo rm -rf ~/{.cargo,.dotnet,.rustup}
+          sudo timedatectl set-timezone "${TZ:-Etc/UTC}"
+          sudo ntpdate ntp.ubuntu.com 0.pool.ntp.org || true
+          sudo timedatectl set-ntp true
+          date -u
+          echo "status=success" >> ${GITHUB_OUTPUT}
+
+      - name: Create virtual disk for extended storage
+        id: disk
+        run: |
+          root_avail=$(df --block-size=1G / | tail -1 | awk '{print $4}')
+          root_size=$(( root_avail - 4 ))
+          [[ "${root_size}" -gt 0 ]] || { echo "Error: Insufficient space on /: ${root_avail}G available"; exit 1; }
+          sudo truncate -s "${root_size}"G /root.img
+          build_dev=$(sudo losetup --find --show /root.img)
+          echo "Using /: ${root_size}G"
+          sudo mkfs.xfs -f -i sparse=0 -b size=4096 "${build_dev}"
+          sudo mkdir -p /builder
+          sudo mount "${build_dev}" /builder
+          sudo chown -R runner:runner /builder
+          df -Th
+          echo "status=success" >> ${GITHUB_OUTPUT}
+
+      # ------------------------------------------------------------- compile ---
+      - name: Clone OpenWrt source (main)
+        id: codes
+        if: ${{ env.REPACK_ONLY != 'true' }}
+        working-directory: /builder
+        run: |
+          git clone -q --single-branch --depth=1 --branch=main https://github.com/openwrt/openwrt openwrt
+          ln -sf /builder/openwrt ${{ github.workspace }}/openwrt
+          echo "REPO_URL=https://github.com/openwrt/openwrt" >> ${GITHUB_ENV}
+          echo "REPO_BRANCH=main" >> ${GITHUB_ENV}
+          echo "OPENWRT_COMMIT=$(git -C openwrt rev-parse --short HEAD)" >> ${GITHUB_ENV}
+          df -hT ${PWD}
+
+      - name: Load custom feeds
+        if: ${{ env.REPACK_ONLY != 'true' }}
+        run: |
+          [[ -f "config/${SOURCE_BRANCH}/feeds.conf.default" ]] && cp -f config/${SOURCE_BRANCH}/feeds.conf.default openwrt/feeds.conf.default
+          chmod +x config/${SOURCE_BRANCH}/diy-part1.sh
+          cd openwrt/
+          ${{ github.workspace }}/config/${SOURCE_BRANCH}/diy-part1.sh
+
+      - name: Update and install feeds
+        if: ${{ env.REPACK_ONLY != 'true' }}
+        run: cd openwrt/ && ./scripts/feeds update -a && ./scripts/feeds install -a
+
+      - name: Load custom configuration
+        if: ${{ env.REPACK_ONLY != 'true' }}
+        run: |
+          # 1. upstream: files/ overlay, .config, diy-part2 (LAN IP, password, ccache, luci-app-amlogic)
+          [[ -d "files" ]] && cp -a files openwrt/files
+          cp -f config/${SOURCE_BRANCH}/config openwrt/.config
+          chmod +x config/${SOURCE_BRANCH}/diy-part2.sh
+          cd openwrt/
+          ${{ github.workspace }}/config/${SOURCE_BRANCH}/diy-part2.sh "${OPENWRT_IP}" "${USE_CCACHE}"
+          # 2. this fork: source tree edits, then the package changes (fails here if one is wrong)
+          bash ${{ github.workspace }}/custom/openwrt_main/diy-part3.sh
+          bash ${{ github.workspace }}/custom/scripts/apply-config.sh "${PWD}"
+
+      - name: Download package
+        if: ${{ env.REPACK_ONLY != 'true' }}
+        run: |
+          cd openwrt/
+          make download -j8
+          find dl -size -1024c -exec ls -l {} \;
+          find dl -size -1024c -exec rm -f {} \;
+
+      - name: Get OpenWrt source commit hash
+        id: openwrthash
+        if: ${{ env.REPACK_ONLY != 'true' }}
+        run: |
+          source_hash=$(curl -fsSL -m 20 \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+              https://api.github.com/repos/openwrt/openwrt/git/ref/heads/main | jq -r '.object.sha')
+          [[ -z "${source_hash}" || "${source_hash}" == "null" ]] && source_hash="${{ github.sha }}"
+          echo "source_hash=${source_hash}" >> ${GITHUB_ENV}
+
+      - name: Cache ccache
+        if: ${{ env.REPACK_ONLY != 'true' }}
+        uses: actions/cache@v5
+        with:
+          path: /builder/openwrt/.ccache
+          key: openwrt-main-${{ env.source_hash }}
+          restore-keys: |
+            openwrt-main-
+
+      - name: Compile the OpenWrt firmware
+        id: compile
+        if: ${{ env.REPACK_ONLY != 'true' }}
+        run: |
+          cd openwrt/
+          echo -e "Compiling with $(nproc) threads"
+          make -j$(($(nproc) + 1)) V=s || make -j1 || make -j1 V=s
+          echo -e "ccache statistics:"
+          ccache -s 2>/dev/null || true
+          echo "status=success" >> ${GITHUB_OUTPUT}
+
+      - name: Collect the rootfs and reclaim disk space
+        id: clean
+        if: ${{ env.REPACK_ONLY != 'true' && steps.compile.outputs.status == 'success' && !cancelled() }}
+        run: |
+          cd openwrt/
+          mkdir -p output
+          ls -alh bin/targets/*/*/* || true
+          cp -f bin/targets/*/*/*-generic-rootfs.tar.gz output/
+          cp -f .config output/config
+          # the apk package list of this build is part of the release notes
+          ls -A | grep -vE '^(output|\.ccache)$' | xargs rm -rf || true
+          df -hT ${PWD}
+          echo "status=success" >> ${GITHUB_OUTPUT}
+
+      # --------------------------------------------------------- repack only ---
+      - name: Fetch the rootfs of the last build
+        id: lastrootfs
+        if: ${{ env.REPACK_ONLY == 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # newest release of this repository that carries a *rootfs.tar.gz
+          tag=""
+          for t in $(gh release list --repo "${GITHUB_REPOSITORY}" --limit 30 --json tagName -q '.[].tagName' | grep '^OpenWrt_openwrt_main_'); do
+            if gh release view "${t}" --repo "${GITHUB_REPOSITORY}" --json assets -q '.assets[].name' | grep -q 'rootfs\.tar\.gz$'; then
+              tag="${t}"; break
+            fi
+          done
+          [[ -n "${tag}" ]] || { echo "::error::no release with a rootfs.tar.gz yet - run once without 'repack_only'"; exit 1; }
+          echo "Using the rootfs of release ${tag}"
+          mkdir -p /builder/openwrt/output
+          ln -sfn /builder/openwrt ${{ github.workspace }}/openwrt
+          gh release download "${tag}" --repo "${GITHUB_REPOSITORY}" --pattern '*rootfs.tar.gz' --pattern 'config' --dir /builder/openwrt/output
+          ls -lh /builder/openwrt/output
+          echo "REPO_URL=https://github.com/openwrt/openwrt" >> ${GITHUB_ENV}
+          echo "REPO_BRANCH=main" >> ${GITHUB_ENV}
+          echo "OPENWRT_COMMIT=(rootfs of ${tag})" >> ${GITHUB_ENV}
+          echo "status=success" >> ${GITHUB_OUTPUT}
+
+      # ------------------------------------------------------------- package ---
+      - name: Set the release tag
+        run: echo "build_tag=OpenWrt_${SOURCE_BRANCH}_${OPENWRT_STORAGE}_$(date +"%Y.%m")" >> ${GITHUB_ENV}
+
+      - name: Upload the OpenWrt rootfs to the release
+        uses: ophub/upload-to-releases@main
+        if: ${{ env.REPACK_ONLY != 'true' && steps.clean.outputs.status == 'success' && !cancelled() }}
+        with:
+          tag: ${{ env.build_tag }}
+          artifacts: openwrt/output/*
+          allow_updates: true
+          remove_artifacts: false
+          replaces_artifacts: true
+          make_latest: true
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Prepare the files for the rootfs (installer, openwrt-tf, update wrapper)
+        id: stage
+        if: ${{ (steps.clean.outputs.status == 'success' || steps.lastrootfs.outputs.status == 'success') && !cancelled() }}
+        run: |
+          # luci-app-amlogic scripts: from the clone the OpenWrt build used, else a fresh one
+          LAR=""
+          for d in /builder/openwrt/package/luci-app-amlogic/luci-app-amlogic; do [[ -d "${d}/root" ]] && LAR="${d}"; done
+          if [[ -z "${LAR}" ]]; then
+            git clone -q -b main --depth=1 https://github.com/ophub/luci-app-amlogic.git /tmp/luci-app-amlogic
+            LAR=/tmp/luci-app-amlogic/luci-app-amlogic
+          fi
+          bash custom/openwrt_main/stage-rootfs-files.sh "${PWD}" "${LAR}"
+          echo "status=success" >> ${GITHUB_OUTPUT}
+
+      - name: Package OpenWrt for the target boards
+        id: package
+        if: ${{ steps.stage.outputs.status == 'success' && !cancelled() }}
+        uses: ./
+        with:
+          openwrt_path: openwrt/output/*rootfs.tar.gz
+          openwrt_ip: ${{ env.OPENWRT_IP }}
+          openwrt_board: ${{ env.OPENWRT_BOARD }}
+          openwrt_kernel: ${{ env.OPENWRT_KERNEL }}
+          auto_kernel: ${{ env.AUTO_KERNEL }}
+          kernel_repo: ophub/kernel
+          kernel_usage: ${{ env.KERNEL_USAGE }}
+          openwrt_size: ${{ env.OPENWRT_SIZE }}
+          openwrt_files: ${{ github.workspace }}/custom/rootfs-files
+          builder_name: ${{ env.BUILDER_NAME }}
+
+      - name: Name the images *-sysupgrade.img.gz and verify them
+        id: finish
+        if: ${{ env.PACKAGED_STATUS == 'success' && !cancelled() }}
+        run: |
+          cd "${PACKAGED_OUTPUTPATH}"
+          sudo rm -f ./*rootfs.tar.gz   # the rootfs is uploaded above, it is not a flashable image
+          shopt -s nullglob
+          for f in ./*.img.gz; do
+            sudo mv -f "${f}" "${f%.img.gz}-sysupgrade.img.gz"
+          done
+          ls -lh
+          images=(./*-sysupgrade.img.gz)
+          [[ "${#images[@]}" -gt 0 ]] || { echo "::error::no image was produced"; exit 1; }
+          for f in "${images[@]}"; do
+            sudo bash ${{ github.workspace }}/custom/scripts/verify-image.sh "${f}" "${{ github.workspace }}/custom/openwrt_main/packages.check"
+          done
+          sha256sum ./*-sysupgrade.img.gz > sha256sums
+          cat sha256sums
+          echo "status=success" >> ${GITHUB_OUTPUT}
+
+      - name: Upload the images to the release
+        uses: ophub/upload-to-releases@main
+        if: ${{ steps.finish.outputs.status == 'success' && !cancelled() }}
+        with:
+          tag: ${{ env.build_tag }}
+          artifacts: ${{ env.PACKAGED_OUTPUTPATH }}/*
+          allow_updates: true
+          remove_artifacts: false
+          replaces_artifacts: true
+          make_latest: true
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
+          body: |
+            ### OpenWrt (official `main`) for Amlogic / Rockchip / Allwinner boxes
+            | | |
+            |---|---|
+            | Default IP | `${{ env.OPENWRT_IP }}` |
+            | Login | `root` / `password` |
+            | Time zone / language | Asia/Tokyo / 简体中文 |
+            | Source | [openwrt/openwrt](https://github.com/openwrt/openwrt) `main` ${{ env.OPENWRT_COMMIT }} |
+            | Boards | `${{ env.OPENWRT_BOARD }}` |
+
+            ### Which file
+            | File | When |
+            | --- | --- |
+            | `*-sysupgrade.img.gz` | everything: first install (write to SD/USB, boot, *System → Amlogic Service → Install OpenWrt*; Rockchip: write to the target disk) **and** every later update |
+
+            ### Update (single rootfs, no A/B pair)
+            *LuCI → System → Backup / Flash Firmware → choose the `*-sysupgrade.img.gz` of your board*, or
+            `sysupgrade /tmp/openwrt_*-sysupgrade.img.gz`. Only boot + rootfs are rewritten; bootloader, partition table and the data partition p3 (docker, swap) are not touched. Needs the image's size in free RAM.
+
+            ### Layout
+            `BOOT (fat32) | ROOTFS (btrfs, zstd) | SHARED data = rest of the disk`. Docker's data-root is on the data partition.
+
+            ### Included
+            Docker + docker-compose + LuCI Dockerman, HomeProxy (sing-box), dnsmasq-full, BBR, zram swap (half of RAM), btrfs/zstd. Removed: ttyd, Samba 4, FRP client/server, attended sysupgrade.
+
+      - name: Prune old releases
+        uses: dev-drprasad/delete-older-releases@v0.3.4
+        if: ${{ env.OPENWRT_STORAGE == 'save' && !cancelled() }}
+        continue-on-error: true
+        with:
+          keep_latest: 6
+          delete_tag_pattern: OpenWrt_openwrt_main_
+          delete_tags: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

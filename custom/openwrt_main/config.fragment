@@ -1,0 +1,83 @@
+# Package changes on top of config/openwrt_main/config (the upstream .config, kept untouched
+# so that upstream updates to it flow in unchanged).
+#
+# Applied by custom/scripts/apply-config.sh after upstream's diy-part2.sh and before the
+# first `make defconfig`. Syntax = .config syntax:
+#     CONFIG_PACKAGE_foo=y             enable
+#     # CONFIG_PACKAGE_foo is not set  disable (and drop everything that only foo needed)
+#     #!keep foo                       never drop foo as an "attached package" (see below)
+#
+# "Attached packages": after a package is disabled, apply-config.sh also drops every package
+# whose ONLY users were disabled packages (libs, kmods, helper daemons). Packages that
+# something else still needs are re-selected by kconfig, so this cannot break a dependency.
+
+# ------------------------------------------------------------------ removed ---
+# ttyd (web terminal)
+# CONFIG_PACKAGE_luci-app-ttyd is not set
+# CONFIG_PACKAGE_luci-i18n-ttyd-zh-cn is not set
+# CONFIG_PACKAGE_ttyd is not set
+
+# Samba 4 (+ wsdd2 / avahi / netbios helpers, CIFS client module)
+# CONFIG_PACKAGE_luci-app-samba4 is not set
+# CONFIG_PACKAGE_luci-i18n-samba4-zh-cn is not set
+# CONFIG_PACKAGE_samba4-server is not set
+# CONFIG_PACKAGE_samba4-client is not set
+# CONFIG_PACKAGE_samba4-admin is not set
+# CONFIG_PACKAGE_samba4-utils is not set
+# CONFIG_PACKAGE_samba4-libs is not set
+# CONFIG_PACKAGE_wsdd2 is not set
+# CONFIG_PACKAGE_avahi-dbus-daemon is not set
+# CONFIG_PACKAGE_kmod-fs-cifs is not set
+# CONFIG_SAMBA4_SERVER_AVAHI is not set
+# CONFIG_SAMBA4_SERVER_NETBIOS is not set
+# CONFIG_SAMBA4_SERVER_VFS is not set
+# CONFIG_SAMBA4_SERVER_WSDD2 is not set
+
+# FRP client + server
+# CONFIG_PACKAGE_luci-app-frpc is not set
+# CONFIG_PACKAGE_luci-i18n-frpc-zh-cn is not set
+# CONFIG_PACKAGE_frpc is not set
+# CONFIG_PACKAGE_luci-app-frps is not set
+# CONFIG_PACKAGE_luci-i18n-frps-zh-cn is not set
+# CONFIG_PACKAGE_frps is not set
+
+# Attended sysupgrade: would offer official armsr images, which do not boot on these boxes.
+# Firmware updates are the sysupgrade.img.gz of this repository (see README).
+# CONFIG_PACKAGE_luci-app-attendedsysupgrade is not set
+# CONFIG_PACKAGE_luci-i18n-attendedsysupgrade-zh-cn is not set
+# CONFIG_PACKAGE_attendedsysupgrade-common is not set
+
+# Chosen on purpose by upstream, although samba/ttyd depended on them as well.
+#!keep attr
+
+# ------------------------------------------------------------------- added ---
+# Docker (data root goes to the data partition p3, see openwrt-install-amlogic / openwrt-tf)
+CONFIG_PACKAGE_docker=y
+CONFIG_PACKAGE_dockerd=y
+CONFIG_PACKAGE_docker-compose=y
+CONFIG_PACKAGE_luci-app-dockerman=y
+CONFIG_PACKAGE_luci-i18n-dockerman-zh-cn=y
+CONFIG_DOCKER_CGROUP_OPTIONS=y
+CONFIG_DOCKER_NET_MACVLAN=y
+CONFIG_DOCKER_STO_EXT4=y
+CONFIG_DOCKER_STO_BTRFS=y
+
+# HomeProxy + sing-box (HomeProxy comes from immortalwrt/homeproxy, see diy-part3.sh)
+CONFIG_PACKAGE_luci-app-homeproxy=y
+CONFIG_PACKAGE_luci-i18n-homeproxy-zh-cn=y
+CONFIG_PACKAGE_sing-box=y
+CONFIG_SINGBOX_WITH_DHCP=y
+# CONFIG_SINGBOX_WITH_TAILSCALE is not set
+# ip-tiny has no "ip tuntap", which HomeProxy's init needs for its tun route
+CONFIG_PACKAGE_ip-full=y
+CONFIG_PACKAGE_kmod-nft-tproxy=y
+CONFIG_PACKAGE_kmod-tun=y
+
+# dnsmasq-full instead of dnsmasq (nftset / conntrack / DNSSEC, needed by proxy setups)
+CONFIG_PACKAGE_dnsmasq-full=y
+# CONFIG_PACKAGE_dnsmasq is not set
+
+# Performance: BBR + zram swap (size = half of RAM, see files/etc/uci-defaults/99-ophub-defaults)
+CONFIG_PACKAGE_kmod-tcp-bbr=y
+CONFIG_PACKAGE_kmod-zram=y
+CONFIG_PACKAGE_zram-swap=y

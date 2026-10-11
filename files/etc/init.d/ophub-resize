@@ -1,0 +1,17 @@
+#!/bin/sh /etc/rc.common
+# Grow the btrfs rootfs to the size of its partition.
+#
+# A sysupgrade writes the image's rootfs (e.g. 1 GiB) into the installed root
+# partition, which may be larger. btrfs can be grown online and the command is a
+# no-op when there is nothing to do, so it simply runs on every boot.
+
+START=99
+
+start() {
+	local fstype
+	fstype="$(awk '$2=="/" {t=$3} END {print t}' /proc/mounts)"
+	[ "$fstype" = "btrfs" ] || return 0
+	command -v btrfs >/dev/null 2>&1 || return 0
+	btrfs filesystem resize max / >/dev/null 2>&1
+	return 0
+}

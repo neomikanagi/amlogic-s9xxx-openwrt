@@ -1,0 +1,70 @@
+#!/bin/bash
+#======================================================================================
+# Firmware update with the stock OpenWrt sysupgrade (single rootfs layout).
+#
+# luci-app-amlogic ("Manually Upload Update" / "Online Download Update") and the
+# command line call this script; the same file is installed as openwrt-update-amlogic,
+# -rockchip, -allwinner and -kvm. It only finds the image and hands it to sysupgrade;
+# everything that touches the disk lives in /lib/upgrade/platform.sh.
+#
+#   openwrt-update-amlogic [image.img.gz] [AUTO_MAINLINE_UBOOT] [restore|no-restore]
+#
+# The same thing can be done from LuCI: System -> Backup / Flash Firmware, or
+#   sysupgrade [-n] /tmp/openwrt_*-sysupgrade.img.gz
+#======================================================================================
+
+error_msg() {
+    echo -e "[ERROR] ${1}"
+    exit 1
+}
+
+IMG_NAME="${1}"
+# ${2} (write a mainline u-boot) is accepted and ignored: an update never touches the bootloader.
+RESTORE="${3:-restore}"
+
+# Directories searched when no image is given: the upload dir of luci-app-amlogic and the
+# shared data partition (p3) it downloads to.
+find_image() {
+    local d f
+    local root_pt disk
+    root_pt="$(df / | awk 'NR==2 {print $1}' | awk -F/ '{print $3}')"
+    case "${root_pt}" in
+    mmcblk?p[0-9]* | nvme?n?p[0-9]*) disk="$(echo "${root_pt}" | sed -E 's/p[0-9]+$//')p" ;;
+    [hsv]d[a-z][0-9]*) disk="$(echo "${root_pt}" | sed -E 's/[0-9]+$//')" ;;
+    esac
+    for d in /tmp/upload "/mnt/${disk}3" "/mnt/${disk}3/.luci-app-amlogic"; do
+        [[ -n "${disk}" || "${d}" == /tmp/* ]] || continue
+        for f in "${d}"/*.img.gz "${d}"/*.img; do
+            [[ -f "${f}" ]] && {
+                echo "${f}"
+                return 0
+            }
+        done
+    done
+    return 1
+}
+
+[[ -n "${IMG_NAME}" ]] || IMG_NAME="$(find_image)" ||
+    error_msg "No firmware given. Pass the path of a *-sysupgrade.img.gz, or upload one in System -> Amlogic Service."
+[[ -f "${IMG_NAME}" ]] || error_msg "[ ${IMG_NAME} ] does not exist."
+case "${IMG_NAME}" in
+*.img.gz | *.img) ;;
+*) error_msg "Unsupported file type: [ ${IMG_NAME} ]. Use the *-sysupgrade.img.gz from the release page (no .xz/.7z/.zip)." ;;
+esac
+command -v sysupgrade >/dev/null 2>&1 || error_msg "sysupgrade not found."
+
+# sysupgrade keeps the image in RAM (/tmp). Be sure it fits before it kills every service.
+IMG_KB="$(($(stat -c %s "${IMG_NAME}") / 1024))"
+sync && echo 1 >/proc/sys/vm/drop_caches 2>/dev/null
+AVAIL_KB="$(awk '/^MemAvailable:/ {print $2}' /proc/meminfo)"
+if [[ "${IMG_NAME}" != /tmp/* && "${AVAIL_KB}" -lt "$((IMG_KB + 98304))" ]]; then
+    error_msg "Not enough free RAM to hold the image: need $(((IMG_KB + 98304) / 1024)) MiB, have $((AVAIL_KB / 1024)) MiB. Stop docker/containers (or reboot) and try again."
+fi
+
+OPTS=()
+[[ "${RESTORE}" == "no-restore" ]] && OPTS+=("-n")
+
+echo "Update with sysupgrade [ ${IMG_NAME} ] ${OPTS[*]} ..."
+sysupgrade -T "${OPTS[@]}" "${IMG_NAME}" || error_msg "The image was rejected (see the messages above). Use 'sysupgrade -F' only if you are sure."
+echo "Image accepted, flashing. The box reboots by itself when it is done."
+exec sysupgrade "${OPTS[@]}" "${IMG_NAME}"

@@ -1,0 +1,12 @@
+# Checked against the final .config after `make defconfig`, before the 2-3 hour build starts.
+# forbid <pkg>... : must NOT be built (=y or =m)
+# require <pkg>... : must be built
+forbid luci-app-ttyd luci-i18n-ttyd-zh-cn ttyd libwebsockets-full
+forbid luci-app-samba4 luci-i18n-samba4-zh-cn samba4-server samba4-client samba4-admin samba4-utils samba4-libs wsdd2 avahi-dbus-daemon libavahi-client libavahi-dbus-support kmod-fs-cifs
+forbid luci-app-frpc luci-i18n-frpc-zh-cn frpc luci-app-frps luci-i18n-frps-zh-cn frps
+forbid luci-app-attendedsysupgrade luci-i18n-attendedsysupgrade-zh-cn attendedsysupgrade-common
+forbid dnsmasq
+require docker dockerd docker-compose containerd runc luci-app-dockerman luci-i18n-dockerman-zh-cn
+require luci-app-homeproxy luci-i18n-homeproxy-zh-cn sing-box ip-full kmod-nft-tproxy kmod-tun
+require dnsmasq-full kmod-tcp-bbr kmod-zram zram-swap
+require luci-app-amlogic btrfs-progs dosfstools parted losetup uuidgen lsblk blkid

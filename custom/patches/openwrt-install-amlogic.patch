@@ -1,0 +1,168 @@
+--- a/usr/sbin/openwrt-install-amlogic
++++ b/usr/sbin/openwrt-install-amlogic
+@@ -281,9 +281,14 @@
+     p=$((p - 1))
+ done
+ 
+-# you can change ROOT size(MB) >= 320
+-ROOT1="1280"
+-ROOT2="1280"
++# Single rootfs layout (no A/B pair): p1 BOOT | p2 ROOTFS | p3 shared data (rest of the disk).
++# ROOT size (MiB): at least the size of the root partition of the image we are running from,
++# default 1536 so later images may grow; override with: OPENWRT_ROOT_MB=2048 openwrt-install-amlogic ...
++ROOT1="${OPENWRT_ROOT_MB:-1536}"
++RUN_ROOT_MB="$(($(lsblk -b -n -d -o SIZE /dev/${ROOT_NAME} 2>/dev/null | head -n1) / 1048576))"
++[[ "${ROOT1}" -lt "${RUN_ROOT_MB}" ]] && ROOT1="${RUN_ROOT_MB}"
++[[ "${ROOT1}" -lt 1024 ]] && ROOT1="1024"
++RUN_BOOT_MB="$(($(lsblk -b -n -d -o SIZE /dev/${BOOT_NAME} 2>/dev/null | head -n1) / 1048576))"
+ if [[ "${AMLOGIC_SOC}" == "s912" ]] && [[ "${boxtype}" == "213" || "${boxtype}" == "2e" ]]; then
+     BOOT="512"
+     BLANK1="700"
+@@ -347,10 +352,14 @@
+     BOOT="160"
+     BLANK1="68"
+     BLANK2="0"
+-    BLANK3="162"
++    BLANK3="0"
+     BLANK4="0"
+ fi
+ 
++# A later sysupgrade writes the image's boot partition as it is, so the installed one
++# must be at least as big as the one of the running image.
++[[ "${BOOT}" -lt "${RUN_BOOT_MB}" ]] && BOOT="${RUN_BOOT_MB}"
++
+ DST_TOTAL_MB=$((EMMC_SIZE / 1024 / 1024))
+ 
+ start1=$((BLANK1 * 2048))
+@@ -360,10 +369,8 @@
+ end2=$((start2 + (ROOT1 * 2048) - 1))
+ 
+ start3=$(((BLANK3 * 2048) + end2 + 1))
+-end3=$((start3 + (ROOT2 * 2048) - 1))
+-
+-start4=$(((BLANK4 * 2048) + end3 + 1))
+-end4=$((DST_TOTAL_MB * 2048 - 1))
++end3=$((DST_TOTAL_MB * 2048 - 1))
++echo "Partition plan [MiB]: boot ${BOOT} @ ${BLANK1}, rootfs ${ROOT1}, shared data = rest ($(((end3 - start3 + 1) / 2048)))"
+ 
+ cat >>/tmp/fdisk.script <<EOF
+ n
+@@ -381,10 +388,6 @@
+ 3
+ $start3
+ $end3
+-n
+-p
+-$start4
+-$end4
+ t
+ 1
+ c
+@@ -394,9 +397,6 @@
+ t
+ 3
+ 83
+-t
+-4
+-83
+ w
+ EOF
+ 
+@@ -419,9 +419,6 @@
+ seek=$((start3 / 2048))
+ dd if=/dev/zero of=/dev/${EMMC_NAME} bs=1M count=1 seek=$seek conv=fsync
+ 
+-seek=$((start4 / 2048))
+-dd if=/dev/zero of=/dev/${EMMC_NAME} bs=1M count=1 seek=$seek conv=fsync
+-
+ #Mainline U-BOOT detection
+ FLASH_MAINLINE_UBOOT=0
+ if [[ -n "${MAINLINE_UBOOT}" && -f "${MAINLINE_UBOOT}" ]]; then
+@@ -484,20 +481,13 @@
+ sleep 2
+ umount -f /mnt/${EMMC_NAME}p1 2>/dev/null
+ 
+-echo "format rootfs1 partiton..."
++echo "format rootfs partiton..."
+ ROOTFS1_UUID=$(/usr/bin/uuidgen)
+-mkfs.btrfs -f -U ${ROOTFS1_UUID} -L EMMC_ROOTFS1 -m single /dev/${EMMC_NAME}p2
++mkfs.btrfs -f -U ${ROOTFS1_UUID} -L EMMC_ROOTFS -m single /dev/${EMMC_NAME}p2
+ mkdir -p /mnt/${EMMC_NAME}p2
+ sleep 2
+ umount -f /mnt/${EMMC_NAME}p2 2>/dev/null
+ 
+-echo "format rootfs2 partiton..."
+-ROOTFS2_UUID=$(/usr/bin/uuidgen)
+-mkfs.btrfs -f -U ${ROOTFS2_UUID} -L EMMC_ROOTFS2 -m single /dev/${EMMC_NAME}p3
+-mkdir -p /mnt/${EMMC_NAME}p3
+-sleep 2
+-umount -f /mnt/${EMMC_NAME}p3 2>/dev/null
+-
+ # mount and copy
+ echo "Wait for the boot file system to mount ... "
+ i=1
+@@ -600,7 +590,7 @@
+         cat >etc/docker/daemon.json <<EOF
+ {
+   "bip": "172.31.0.1/24",
+-  "data-root": "/mnt/${EMMC_NAME}p4/docker/",
++  "data-root": "/mnt/${EMMC_NAME}p3/docker/",
+   "log-level": "warn",
+   "log-driver": "json-file",
+   "log-opts": {
+@@ -616,10 +606,10 @@
+ 
+         # change data_root value in /etc/config/dockerd
+         if [[ -f "/etc/init.d/dockerman" ]] && [[ -f "/etc/config/dockerd" ]]; then
+-            sed -i "s|option data_root.*|option data_root '/mnt/${EMMC_NAME}p4/docker/'|g" etc/config/dockerd
++            sed -i "s|option data_root.*|option data_root '/mnt/${EMMC_NAME}p3/docker/'|g" etc/config/dockerd
+         fi
+-        rm -rf opt/docker && ln -sf /mnt/${EMMC_NAME}p4/docker/ opt/docker >/dev/null
+-        rm -rf usr/bin/AdGuardHome && ln -sf /mnt/${EMMC_NAME}p4/AdGuardHome usr/bin/ >/dev/null
++        rm -rf opt/docker && ln -sf /mnt/${EMMC_NAME}p3/docker/ opt/docker >/dev/null
++        rm -rf usr/bin/AdGuardHome && ln -sf /mnt/${EMMC_NAME}p3/AdGuardHome usr/bin/ >/dev/null
+ 
+         echo "Edit configuration file ..."
+         #cd /mnt/${EMMC_NAME}p2/usr/bin/
+@@ -679,7 +669,7 @@
+ echo "complete."
+ 
+ echo "Create a shared file system."
+-mkdir -p /mnt/${EMMC_NAME}p4
++mkdir -p /mnt/${EMMC_NAME}p3
+ 
+ # When there is no input parameter, select manually
+ if [[ -n "${SHARED_FSTYPE}" ]]; then
+@@ -698,23 +688,23 @@
+ fi
+ case $TARGET_SHARED_FSTYPE in
+ 2 | btrfs)
+-    mkfs.btrfs -f -L EMMC_SHARED -m single /dev/${EMMC_NAME}p4 >/dev/null
+-    mount -t btrfs /dev/${EMMC_NAME}p4 /mnt/${EMMC_NAME}p4
++    mkfs.btrfs -f -L EMMC_SHARED -m single /dev/${EMMC_NAME}p3 >/dev/null
++    mount -t btrfs /dev/${EMMC_NAME}p3 /mnt/${EMMC_NAME}p3
+     ;;
+ 3 | f2fs)
+-    mkfs.f2fs -f -l EMMC_SHARED /dev/${EMMC_NAME}p4 >/dev/null
+-    mount -t f2fs /dev/${EMMC_NAME}p4 /mnt/${EMMC_NAME}p4
++    mkfs.f2fs -f -l EMMC_SHARED /dev/${EMMC_NAME}p3 >/dev/null
++    mount -t f2fs /dev/${EMMC_NAME}p3 /mnt/${EMMC_NAME}p3
+     ;;
+ 4 | xfs)
+-    mkfs.xfs -f -L EMMC_SHARED /dev/${EMMC_NAME}p4 >/dev/null
+-    mount -t xfs /dev/${EMMC_NAME}p4 /mnt/${EMMC_NAME}p4
++    mkfs.xfs -f -L EMMC_SHARED /dev/${EMMC_NAME}p3 >/dev/null
++    mount -t xfs /dev/${EMMC_NAME}p3 /mnt/${EMMC_NAME}p3
+     ;;
+ *)
+-    mkfs.ext4 -F -L EMMC_SHARED /dev/${EMMC_NAME}p4 >/dev/null
+-    mount -t ext4 /dev/${EMMC_NAME}p4 /mnt/${EMMC_NAME}p4
++    mkfs.ext4 -F -L EMMC_SHARED /dev/${EMMC_NAME}p3 >/dev/null
++    mount -t ext4 /dev/${EMMC_NAME}p3 /mnt/${EMMC_NAME}p3
+     ;;
+ esac
+-mkdir -p /mnt/${EMMC_NAME}p4/docker /mnt/${EMMC_NAME}p4/AdGuardHome/data
++mkdir -p /mnt/${EMMC_NAME}p3/docker /mnt/${EMMC_NAME}p3/AdGuardHome/data
+ sync
+ 
+ echo "Successful installed, please unplug the USB, re-insert the power supply to start the openwrt."

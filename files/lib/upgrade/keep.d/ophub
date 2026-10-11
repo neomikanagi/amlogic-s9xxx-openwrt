@@ -1,0 +1,16 @@
+# Kept across sysupgrade in addition to /etc/sysupgrade.conf and the package
+# conffiles. Everything here is configuration the user (or an installer script)
+# created, not something shipped by a package.
+
+# marker: the first-boot defaults were already applied
+/etc/.ophub-defaults-applied
+
+# docker daemon.json written by the installer / openwrt-tf (data-root on the data partition)
+/etc/docker
+
+# scheduled jobs, irq balancing table
+/etc/crontabs
+/etc/balance_irq
+
+# HomeProxy keeps its certificates and subscription cache here
+/etc/homeproxy
