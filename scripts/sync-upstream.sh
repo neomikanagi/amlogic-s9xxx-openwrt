@@ -31,6 +31,16 @@ for a in "$@"; do
 done
 
 cd "$(git rev-parse --show-toplevel)"
+if [[ "${DRY}" -eq 1 ]]; then
+    # Preview in an isolated tree: reset/clean in the real checkout can destroy
+    # pre-existing untracked files. No push and no changes to the caller's tree.
+    preview="$(mktemp -d)"
+    trap 'git worktree remove --force "${preview}" >/dev/null 2>&1 || true; rm -rf "${preview}"' EXIT
+    git worktree add -q --detach "${preview}" HEAD
+    (cd "${preview}" && bash scripts/sync-upstream.sh)
+    echo "(dry run: isolated preview; original working tree unchanged)"
+    exit 0
+fi
 # shellcheck disable=SC1091
 source .sync/config
 readlist() { grep -vE '^\s*(#|$)' "$1" || true; }
@@ -56,8 +66,6 @@ fi
 mapfile -t OWN < <(readlist .sync/own.txt)
 mapfile -t DROP < <(readlist .sync/drop.txt)
 mapfile -t WATCH < <(readlist .sync/watch.txt)
-BEFORE="$(git rev-parse HEAD)"
-
 # 1. remove every tracked file that is not ours
 is_own() {
     local f="$1" o
@@ -74,8 +82,19 @@ done | xargs -0 -r git rm -q -f --
 excl=(--anchored)
 for p in "${OWN[@]}" "${DROP[@]}"; do excl+=("--exclude=${p}" "--exclude=${p}/*"); done
 git archive "${U}" | tar -x "${excl[@]}"
-# files ignored by .gitignore (e.g. kernel/u-boot downloads) must not hide a change
-git add -A -f
+# Stage only tracked changes and paths actually supplied by upstream. Forcing
+# `git add -A` also publishes local ignored downloads/build outputs/secrets.
+git add -u
+is_dropped() {
+    local f="$1" p
+    for p in "${DROP[@]}"; do
+        [[ "${f}" == "${p}" || "${f}" == "${p}/"* ]] && return 0
+    done
+    return 1
+}
+git ls-tree -r --name-only -z "${U}" | while IFS= read -r -d '' f; do
+    if ! is_own "${f}" && ! is_dropped "${f}"; then printf '%s\0' "${f}"; fi
+done | xargs -0 -r git add -f --
 printf '%s\n' "${U_SHA}" >.sync/upstream.sha
 git add -f .sync/upstream.sha
 
@@ -101,13 +120,6 @@ while IFS=$'\t' read -r _ path _; do
 done <<<"${CHANGED}"
 output changed true
 output relevant "${relevant}"
-
-if [[ "${DRY}" -eq 1 ]]; then
-    git reset -q --hard "${BEFORE}"
-    git clean -fdq
-    echo "(dry run: tree restored)"
-    exit 0
-fi
 
 LOG="$(git log --oneline -n 25 "${LAST:-${U}~25}..${U}" 2>/dev/null || true)"
 {

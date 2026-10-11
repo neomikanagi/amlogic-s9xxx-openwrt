@@ -86,7 +86,7 @@ Actions → **Build OpenWrt** → Run workflow：
 
 * 本仓库 = **上游当前的树 + 自己的路径**，没有合并冲突：`.sync/own.txt` 里的路径永远保持本仓库的版本，`.sync/drop.txt` 里的上游路径每次同步后删掉，其余全部换成上游最新（上游新增、删除都会跟上）。
 * 对上游文件的改动不做"改过的副本"，而是在**构建时**对刚下载的上游文件做带断言的小改动（`custom/openwrt_main/*.sh`、`custom/patches/*.patch`），所以上游修了 bug 会自动带进来；改不动了就在构建/同步时报错（开 issue），不会悄悄发出半成品。
-* 上游改了构建会用到的文件（`remake`、`make-openwrt/`、`config/openwrt_main/` …）时自动检查补丁并触发一次构建。
+* 上游改了构建会用到的文件（`remake`、`make-openwrt/`、`config/openwrt_main/` …）时自动检查补丁并触发一次构建。`--dry-run` 在临时工作树预览，不删除本地未跟踪文件；同步只暂存上游实际带来的文件，不提交本地下载、编译输出或密钥。离线回归：`bash scripts/tests/test-sync-upstream.sh`（云编译前也会运行）。
 
 ## 目录
 
