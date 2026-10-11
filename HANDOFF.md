@@ -7,7 +7,7 @@
 - **状态：** 代码已补齐并推送 `8921a98`；首次完整编译 `38134342511` 仍在运行，最新代码 repack-only `38136871362` 已排队，最终固件验收待云端完成，不冒充已发布。
 - **改了：** `sync-upstream.sh` 的 dry-run 改为临时工作树，真实同步只强制暂存上游实际路径；新增 `scripts/tests/test-sync-upstream.sh` 并接到云构建 check job，更新 README。此前已验证的单 rootfs、eMMC/Allwinner 与包选择方案均保留。
 - **为什么·思路：** 原 `git clean -fd` 会删除调用方未跟踪文件，`git add -A -f` 会把本地忽略的下载/构建产物乃至密钥提交。四组离线回归验证 dry-run 不变、正确更新/删除/保护上游路径、不暂存本地文件、重复同步幂等；补丁应用、bash 语法、Pi 工人 shellcheck error 级及本 fork build/sync 两条 workflow 的 actionlint 通过。旧上游镜像在宿主隔离 loop 文件上跑升级逻辑，分区表/bootloader/p3、配置、UUID、eMMC 转换检查通过；唯一失败是旧镜像本来没有本 fork 的 sysupgrade hook，**这不算最终新固件通过**。Pi 工人 cgroup 不允许 loop setup，未放宽容器护栏、未安装宿主依赖。
-- **请你：** 无需用户选择。首次编译使用较早提交；利用其新编译 rootfs 在最新提交做 repack-only，验收镜像检查及本 fork 镜像升级测试后才能写成功。等待是 GitHub 外部编译，不再消耗 Claude 续轮等待。
+- **请你：** 无。用户要求云编译自行继续，不在本机编译、不阻塞对话等待；已停止本会话等待，未取消云任务。21:24 JST 核对：首次全编译仍在 Compile 步骤，最新代码 repack-only 在 concurrency 队列，等前者结束后复用其 rootfs。最终云镜像与真机启动未验收；不能把排队/脚本通过写成固件已成功。
 
 ## 2026-10-11 — pi → 下一棒
 
