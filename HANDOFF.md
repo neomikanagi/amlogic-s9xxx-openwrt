@@ -2,6 +2,13 @@
 
 > Cursor / Claude Code / Pi 共用。换棒时在**最上面**追加一条。
 
+## 2026-10-11 — claudecode → 无（云编译“失败”查明：旧提交的校验误报，已由 #4 出片）
+
+- **状态：** 云端已出片。Release `OpenWrt_openwrt_main_save_2026.10` 现有 5 个 `*-sysupgrade.img.gz` + rootfs + config + sha256sums，来自 repack-only `38139887345`（提交 `120844f`），5 个镜像 `verify-image.sh` 全部 `== OK`，没有内核模块缺失警告。真机仍未验收。
+- **改了：** 只加本条，未改代码。
+- **为什么·思路：** 失败的全编译 `38134342511` 跑的是旧提交 `fa744d3`。编译、rootfs 上传、remake 打包都成功了，只挂在校验步骤的 “no kernel image (zImage/Image)”。原因是当时的检查写成 `ls zImage Image | grep -q .`，而脚本开着 `set -o pipefail`；Amlogic 机型没有 `Image`，`ls` 退出码为 2，整条管道就判失败，**镜像本身没问题**。Pi 在 `ac4e687` 已改成 `[[ -e … || -e … ]]`，本地已复现“旧写法判失败、新写法判通过”。boot 用量 155 MiB 也和“含 zImage”对得上（只算内核文件约 139 MiB）。剩下的 Node 20 弃用警告来自 `dev-drprasad/delete-older-releases@v0.3.4`，GitHub 已强制改用 Node 24 运行，“Prune old releases”步骤是成功的，而且上游还没有更新版本，所以不处理。
+- **请你：** 无。真机验收照上一条 pi 的第 2 点做。
+
 ## 2026-10-11 — pi → 无（保留必要云任务、修正 repack 覆盖层）
 
 - **状态：** 离线验证通过、代码 `120844f` 已推送；仅保留 Build #2 `38134342511`（全编译运行中）与修正版 Build #4 `38139887345`（repack-only 排队）。旧 Build #3 `38136871362` 已确认 cancelled。不重复编译软件包，不阻塞对话等待云端。
