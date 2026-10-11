@@ -75,6 +75,8 @@ Actions → **Build OpenWrt** → Run workflow：
 | `openwrt_size` | 镜像分区 `boot/rootfs`（MiB），默认 `256/1024` |
 | `openwrt_storage` | `save` 保留 / `temp` 临时 |
 
+`repack_only` 会重新应用本提交的 `files/` 覆盖层和安装/升级补丁，成品检查确保升级 hook 与本提交一致；不会重编软件包，包选择或源码改动仍须完整编译。
+
 每月 1 日 02:00 UTC 自动编译一次。定时任务用仓库变量（Settings → Secrets and variables → Actions → Variables）：
 `OPENWRT_IP`、`OPENWRT_BOARD`、`OPENWRT_KERNEL`；没设置就用上面的默认值（`s905d_s912-phicomm-t1_panther-x2`，`6.12.y_6.18.y`）。
 构建前会检查参数；打包后会打开每个镜像检查（`custom/scripts/verify-image.sh`：分区只有 p1/p2、没有被删的包、docker/HomeProxy 在、补丁已生效…），任何一项不过就不发布。

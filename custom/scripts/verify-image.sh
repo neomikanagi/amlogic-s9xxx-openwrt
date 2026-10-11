@@ -16,6 +16,7 @@ set -uo pipefail
 
 IMG="${1:?usage: verify-image.sh <image.img.gz> [packages.check]}"
 CHECK="${2:-}"
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 WORK="${VERIFY_TMP:-/builder/verify}"
 [[ -d /builder ]] || WORK="${VERIFY_TMP:-/tmp/verify}"
 
@@ -144,6 +145,8 @@ no_text usr/sbin/openwrt-install-allwinner 'ROOTFS2'
 no_text usr/sbin/openwrt-tf '}4'
 need_text usr/sbin/openwrt-update-amlogic 'sysupgrade'
 need_text lib/upgrade/platform.sh 'ophub_fix_rootfs'
+cmp -s "${R}/lib/upgrade/platform.sh" "${REPO}/files/lib/upgrade/platform.sh" ||
+    fail "upgrade hook differs from this checkout (stale files/ overlay in reused rootfs)"
 need_text usr/share/rpcd/ucode/luci.amlogic "'p3/'"
 no_text usr/share/rpcd/ucode/luci.amlogic "'p4/'"
 need_text usr/share/amlogic/amlogic_check_firmware.sh '${PARTITION_NAME}3'

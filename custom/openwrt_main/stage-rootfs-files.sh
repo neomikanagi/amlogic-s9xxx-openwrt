@@ -23,6 +23,10 @@ GH_REPO="${GITHUB_REPOSITORY:-neomikanagi/amlogic-s9xxx-openwrt}"
 
 [[ -d "${LAR}/root/usr/sbin" ]] || die "${LAR} is not the luci-app-amlogic package directory"
 
+# A reused rootfs contains the files/ overlay from its original compile. Refresh
+# it at packaging time too, or repack-only silently keeps the old upgrade hook.
+mkdir -p "${OUT}"
+cp -a "${REPO}/files/." "${OUT}/"
 mkdir -p "${OUT}/usr/sbin" "${OUT}/usr/share/amlogic"
 for f in openwrt-backup openwrt-kernel openwrt-install-amlogic; do
     cp -f "${LAR}/root/usr/sbin/${f}" "${OUT}/usr/sbin/${f}"
