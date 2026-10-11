@@ -45,8 +45,10 @@ done
 chmod +x "${OUT}"/usr/sbin/openwrt-* "${OUT}"/usr/share/amlogic/*.sh
 
 # upstream files that live in this repository (patched in the build checkout only)
-patch -p1 -d "${COMMON}" <"${REPO}/custom/patches/openwrt-tf.patch" ||
-    die "custom/patches/openwrt-tf.patch no longer applies to upstream's openwrt-tf: re-base it"
+for pt in openwrt-tf openwrt-install-allwinner; do
+    patch -p1 -d "${COMMON}" <"${REPO}/custom/patches/${pt}.patch" ||
+        die "custom/patches/${pt}.patch no longer applies to upstream's ${pt}: re-base it"
+done
 sedx "${COMMON}/etc/custom_service/start_service.sh" 's#(\$\{PARTITION_NAME\})4"#\13"#' '${PARTITION_NAME}3"' '${PARTITION_NAME}4"'
 sedx "${COMMON}/etc/profile.d/30-sysinfo.sh" 's#(\$\{PARTITION_NAME\})4"#\13"#; s#(\$\{mmc_name\}p)4"#\13"#' '${mmc_name}p3"' '${mmc_name}p4"'
 sedx "${COMMON}/usr/sbin/openwrt-swap" 's#(\$\{PARTITION_NAME\})4"#\13"#' '${PARTITION_NAME}3"' '${PARTITION_NAME}4"'

@@ -10,3 +10,4 @@ config/openwrt_main/diy-part1.sh
 config/openwrt_main/diy-part2.sh
 remake
 action.yml
+make-openwrt/openwrt-files/common-files/usr/sbin/openwrt-install-allwinner

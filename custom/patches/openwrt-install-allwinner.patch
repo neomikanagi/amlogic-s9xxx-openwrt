@@ -1,0 +1,77 @@
+--- a/usr/sbin/openwrt-install-allwinner
++++ b/usr/sbin/openwrt-install-allwinner
+@@ -126,9 +126,6 @@
+     ROOTFS1_UUID="$(cat /proc/sys/kernel/random/uuid)"
+     [[ -z "${ROOTFS1_UUID}" ]] && ROOTFS1_UUID="$(uuidgen)"
+     [[ -z "${ROOTFS1_UUID}" ]] && error_msg "The new ROOTFS1_UUID is invalid, cannot continue."
+-    ROOTFS2_UUID="$(cat /proc/sys/kernel/random/uuid)"
+-    [[ -z "${ROOTFS2_UUID}" ]] && ROOTFS2_UUID="$(uuidgen)"
+-    [[ -z "${ROOTFS2_UUID}" ]] && error_msg "The new ROOTFS2_UUID is invalid, cannot continue."
+     SHARE_DATA_UUID="$(cat /proc/sys/kernel/random/uuid)"
+     [[ -z "${SHARE_DATA_UUID}" ]] && SHARE_DATA_UUID="$(uuidgen)"
+     [[ -z "${SHARE_DATA_UUID}" ]] && error_msg "The new SHARE_DATA_UUID is invalid, cannot continue."
+@@ -174,16 +171,16 @@
+     # Set partition size (Unit: MiB)
+     BLANK1="16"
+     BOOT="256"
+-    ROOT1="960"
+-    ROOT2="960"
++    # Single rootfs layout: p1 BOOT | p2 ROOTFS | p3 SHARE_DATA (rest of the disk).
++    # (sysupgrade writes the image's p1/p2 as they are, so they must not be smaller than the image's)
++    ROOT1="${OPENWRT_ROOT_MB:-1536}"
+ 
+     # Format emmc disk
+     echo -e "${INFO} Creating MBR partition table..."
+     parted -s "${DEV_EMMC}" mklabel msdos
+     parted -s "${DEV_EMMC}" mkpart primary fat32 $((BLANK1))MiB $((BLANK1 + BOOT - 1))MiB
+     parted -s "${DEV_EMMC}" mkpart primary btrfs $((BLANK1 + BOOT))MiB $((BLANK1 + BOOT + ROOT1 - 1))MiB
+-    parted -s "${DEV_EMMC}" mkpart primary btrfs $((BLANK1 + BOOT + ROOT1))MiB $((BLANK1 + BOOT + ROOT1 + ROOT2 - 1))MiB
+-    parted -s "${DEV_EMMC}" mkpart primary btrfs $((BLANK1 + BOOT + ROOT1 + ROOT2))MiB 100%
++    parted -s "${DEV_EMMC}" mkpart primary btrfs $((BLANK1 + BOOT + ROOT1))MiB 100%
+     [[ "${?}" -eq "0" ]] || error_msg "Failed to create partition using [ parted ]."
+ 
+     # Write bootloader
+@@ -317,19 +314,18 @@
+     sed -i "s|option label 'BOOT'|option label 'EMMC_BOOT'|" ${DIR_INSTALL}/etc/config/fstab
+     sed -i "s|option uuid.*|option uuid '${ROOTFS1_UUID}'|" ${DIR_INSTALL}/etc/config/fstab
+ 
+-    # Add the third and fourth partition mount directory
+-    mkdir -p ${DIR_INSTALL}/mnt/${install_emmc}p3
+-    mkdir -p ${DIR_INSTALL}/mnt/${install_emmc}p4/docker
++    # Add the data partition mount directory
++    mkdir -p ${DIR_INSTALL}/mnt/${install_emmc}p3/docker
+     rm -rf ${DIR_INSTALL}/opt/docker
+-    ln -sf /mnt/${install_emmc}p4/docker/ ${DIR_INSTALL}/opt/docker
++    ln -sf /mnt/${install_emmc}p3/docker/ ${DIR_INSTALL}/opt/docker
+ 
+     # Update docker settings
+     echo -e "${INFO} Updating Docker data storage path."
+     [[ -f "${DIR_INSTALL}/etc/docker/daemon.json" ]] && {
+-        sed -i "s|mnt\/.*\/docker|mnt\/${install_emmc}p4\/docker|" ${DIR_INSTALL}/etc/docker/daemon.json
++        sed -i "s|mnt\/.*\/docker|mnt\/${install_emmc}p3\/docker|" ${DIR_INSTALL}/etc/docker/daemon.json
+     }
+     [[ -f "${DIR_INSTALL}/etc/config/dockerd" ]] && {
+-        sed -i "s|mnt\/.*\/docker|mnt\/${install_emmc}p4\/docker|" ${DIR_INSTALL}/etc/config/dockerd
++        sed -i "s|mnt\/.*\/docker|mnt\/${install_emmc}p3\/docker|" ${DIR_INSTALL}/etc/config/dockerd
+     }
+ 
+     # Generate initialization snapshot
+@@ -340,16 +336,11 @@
+     umount -f ${DIR_INSTALL}
+     [[ "${?}" -eq "0" ]] || error_msg "Failed to umount [ ${DIR_INSTALL} ]."
+ 
+-    # Format the third and fourth partition
++    # Format the data partition
+     umount -f ${DEV_EMMC}p3 2>/dev/null
+-    umount -f ${DEV_EMMC}p4 2>/dev/null
+-
+-    echo -e "${STEPS} Formatting ROOTFS2 partition..."
+-    mkfs.btrfs -f -U ${ROOTFS2_UUID} -L "MMC_ROOTFS2" -m single ${DEV_EMMC}p3 >/dev/null 2>&1
+-    [[ "${?}" -eq "0" ]] || error_msg "Failed to format ROOTFS2 using [ mkfs.btrfs ]"
+ 
+     echo -e "${STEPS} Formatting SHARE_DATA partition..."
+-    mkfs.btrfs -f -U ${SHARE_DATA_UUID} -L "SHARE_DATA" -m single ${DEV_EMMC}p4 >/dev/null 2>&1
++    mkfs.btrfs -f -U ${SHARE_DATA_UUID} -L "SHARE_DATA" -m single ${DEV_EMMC}p3 >/dev/null 2>&1
+     [[ "${?}" -eq "0" ]] || error_msg "Failed to format SHARE_DATA using [ mkfs.btrfs ]"
+ }
+ 
