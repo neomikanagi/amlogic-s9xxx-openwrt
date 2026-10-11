@@ -4,7 +4,7 @@
 
 ## 2026-10-11 — pi → 无（保留必要云任务、修正 repack 覆盖层）
 
-- **状态：** 离线验证通过；保留 Build #2 `38134342511` 的首次全编译，旧排队 Build #3 将替换为本提交的 repack-only，不重复编译软件包。不阻塞对话等待云端。
+- **状态：** 离线验证通过、代码 `120844f` 已推送；仅保留 Build #2 `38134342511`（全编译运行中）与修正版 Build #4 `38139887345`（repack-only 排队）。旧 Build #3 `38136871362` 已确认 cancelled。不重复编译软件包，不阻塞对话等待云端。
 - **改了：** `stage-rootfs-files.sh` 在打包阶段刷新完整 `files/` 覆盖层；`verify-image.sh` 对比成品升级 hook 与当前提交；`check-patches.sh` 用故意过期的 hook 验证覆盖，并核对所有 files 文件/符号链接；README 明确 repack 与全编译边界。
 - **为什么·思路：** 用户要求只留必要任务。当前没有任何 rootfs Release，因此全编译不能停；重打包是最新 installer 等补丁的必要后置步骤，不是第二次完整编译。同时发现旧 repack 只刷新安装脚本，未刷新编译时已烘入的 `files/lib/upgrade/platform.sh`，会漏掉挂载重试修补；因此旧 #3 必须换成修正版。补丁/覆盖层检查（含过期 hook 覆盖）、同步四组回归、bash 语法、Pi 工人 shellcheck error 级与两条 workflow 的 actionlint 均通过。没有本机编译固件，最终镜像/真机仍未验收。
 - **请你：** 无。旧失败 Build #1 与已成功 Sync 已结束，不占运行资源，无需删除历史；只保留全编译与最终打包两个必要阶段。
