@@ -2,6 +2,13 @@
 
 > Cursor / Claude Code / Pi 共用。换棒时在**最上面**追加一条。
 
+## 2026-10-13 — pi → 无（补删动态 DNS，已触发重编）
+
+- **状态：** 已补删并推送，旧含 DDNS 的 Build `38252904963`（2h38m 成功）作废；新全编译已触发，真机未验收。
+- **改了：** `config.fragment` 加删 `luci-app-ddns`、`luci-i18n-ddns-zh-cn`、`ddns-scripts`、`ddns-scripts-services`（上游四项全是 `=y`）；`packages.check` 加一行 forbid；README 删除清单加动态 DNS。孤立依赖走 `prune-orphans.py` 自动 drop，不手写。
+- **为什么·思路：** 用户指漏删动态 DNS。上游只有这四项 DDNS 是开的，其余 provider 包本来就是 not set；forbid 只写直接包，避免把仍被需要的共享库误杀。`test-sync-upstream.sh` 与 `check-patches.sh` 通过；包选择变更须完整编译，不能 repack。
+- **请你：** 看新 Build 的 `verify-image.sh`（forbid 含 ddns 四项）与 N1/T1 镜像；真机照前条验收。不要还原：DDNS 四项的 not set + forbid。
+
 ## 2026-10-12 — pi → 无（默认改 F 大 6.12 + N1/T1 + 1024MiB，已触发云编译）
 
 - **状态：** 已改默认并推送，云编译已触发（workflow_dispatch，全编译，board=`s905d_s912-phicomm-t1`、kernel=`6.12.y`+`flippy`、size=`256/1024`）。编译约 2–3 小时，真机未验收。

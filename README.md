@@ -57,7 +57,7 @@ Amlogic + eMMC 时把镜像里 USB/SD 风格的 boot 分区转成 eMMC 风格并
 
 相对上游 `config/openwrt_main/config`（见 [`custom/openwrt_main/config.fragment`](custom/openwrt_main/config.fragment)）：
 
-* **删除**：ttyd、Samba 4（含 wsdd2、avahi、netbios、CIFS 模块）、FRP 客户端、FRP 服务端，以及只被它们依赖的库（`libwebsockets`、`libuv`、`dbus`、`libavahi-*`、`libpopt`、`liburing`…，构建时自动算出并在日志里列出）；
+* **删除**：ttyd、Samba 4（含 wsdd2、avahi、netbios、CIFS 模块）、FRP 客户端、FRP 服务端、动态 DNS（含 `ddns-scripts`、`luci-app-ddns`），以及只被它们依赖的库（`libwebsockets`、`libuv`、`dbus`、`libavahi-*`、`libpopt`、`liburing`…，构建时自动算出并在日志里列出）；
   还有 attended sysupgrade（它会推荐官方 armsr 镜像，在这些盒子上不能启动）。
 * **新增**：Docker（dockerd、docker-compose、LuCI Dockerman）、HomeProxy + sing-box、BBR、zram。
 * LuCI Dockerman 在官方源码里依赖 ttyd（容器控制台）；这里去掉了这条依赖，其余功能不受影响，只有"控制台"按钮不可用。

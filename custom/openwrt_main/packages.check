@@ -4,6 +4,7 @@
 forbid luci-app-ttyd luci-i18n-ttyd-zh-cn ttyd libwebsockets-full
 forbid luci-app-samba4 luci-i18n-samba4-zh-cn samba4-server samba4-client samba4-admin samba4-utils samba4-libs wsdd2 avahi-dbus-daemon libavahi-client libavahi-dbus-support kmod-fs-cifs
 forbid luci-app-frpc luci-i18n-frpc-zh-cn frpc luci-app-frps luci-i18n-frps-zh-cn frps
+forbid luci-app-ddns luci-i18n-ddns-zh-cn ddns-scripts ddns-scripts-services
 forbid luci-app-attendedsysupgrade luci-i18n-attendedsysupgrade-zh-cn attendedsysupgrade-common
 forbid dnsmasq
 require docker dockerd docker-compose containerd runc luci-app-dockerman luci-i18n-dockerman-zh-cn
