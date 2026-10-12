@@ -2,6 +2,13 @@
 
 > Cursor / Claude Code / Pi 共用。换棒时在**最上面**追加一条。
 
+## 2026-10-12 — pi → 无（默认改 F 大 6.12 + N1/T1 + 1024MiB，已触发云编译）
+
+- **状态：** 已改默认并推送，云编译已触发（workflow_dispatch，全编译，board=`s905d_s912-phicomm-t1`、kernel=`6.12.y`+`flippy`、size=`256/1024`）。编译约 2–3 小时，真机未验收。
+- **改了：** `build-openwrt.yml` 默认 `openwrt_board s905d_s912-phicomm-t1`（去 Panther X2）、`openwrt_kernel 6.12.y`、`kernel_usage flippy`（F 大，`vars.KERNEL_USAGE` 也可覆盖定时任务）；`custom/patches/openwrt-install-{amlogic,allwinner}.patch` 的 `OPENWRT_ROOT_MB` 默认 `1536→1024`（仍可 `OPENWRT_ROOT_MB=2048` 覆盖，下限 1024 不变）；README 同步默认与 N1 数据分区约 6.1GB。镜像分区 `openwrt_size` 本来就是 `256/1024`，未动。
+- **为什么·思路：** 用户要“F 大的 6.12、只要 N1T1、rootfs 1024”。N1=`s905d`、T1=`s912-phicomm-t1` 均在 model_database 第 14 列且 `BUILD=yes`；N1/T1 的 `KERNEL_TAGS=stable/all`，`-u flippy -k 6.12.y` 会落到 `kernel_flippy` 的 6.12.x（API 已确认有 6.12.112），与 remake 的 `-u/-k` 语义一致。离线验证：`test-sync-upstream.sh` 通过，`check-patches.sh` 三补丁可应用，board token 双命中。
+- **请你：** 看新 Build 的 `verify-image.sh` 与 Release `*-sysupgrade.img.gz`（N1/T1 各 1 个）；真机照旧条 N1 流程验收（U 盘起 → Install → 重启 → 同机型 sysupgrade）。不要还原：`flippy` 默认、`s905d_s912-phicomm-t1` 默认、`OPENWRT_ROOT_MB:-1024`。
+
 ## 2026-10-11 — claudecode → 无（云编译“失败”查明：旧提交的校验误报，已由 #4 出片）
 
 - **状态：** 云端已出片。Release `OpenWrt_openwrt_main_save_2026.10` 现有 5 个 `*-sysupgrade.img.gz` + rootfs + config + sha256sums，来自 repack-only `38139887345`（提交 `120844f`），5 个镜像 `verify-image.sh` 全部 `== OK`，没有内核模块缺失警告。真机仍未验收。

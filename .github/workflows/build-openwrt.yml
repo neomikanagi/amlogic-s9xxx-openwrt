@@ -11,7 +11,7 @@
 #     (new LAN IP, other boards, newer ophub kernel) in about ten minutes
 #
 # Repository variables (Settings -> Secrets and variables -> Actions -> Variables) used by the
-# scheduled run: OPENWRT_IP, OPENWRT_BOARD, OPENWRT_KERNEL.
+# scheduled run: OPENWRT_IP, OPENWRT_BOARD, OPENWRT_KERNEL, KERNEL_USAGE.
 #============================================================================================
 
 name: Build OpenWrt
@@ -29,14 +29,14 @@ on:
         default: "10.10.10.1"
         type: string
       openwrt_board:
-        description: "Boards, joined with _ (e.g. s905d_s912-phicomm-t1_panther-x2), or all / amlogic / rockchip / allwinner. Names: make-openwrt/openwrt-files/common-files/etc/model_database.conf, column 14"
+        description: "Boards, joined with _ (e.g. s905d_s912-phicomm-t1), or all / amlogic / rockchip / allwinner. Names: make-openwrt/openwrt-files/common-files/etc/model_database.conf, column 14"
         required: false
-        default: "s905d_s912-phicomm-t1_panther-x2"
+        default: "s905d_s912-phicomm-t1"
         type: string
       openwrt_kernel:
         description: "Kernel series"
         required: false
-        default: "6.12.y_6.18.y"
+        default: "6.12.y"
         type: choice
         options:
           - 6.12.y
@@ -58,7 +58,7 @@ on:
       kernel_usage:
         description: "Kernel tag (ophub/kernel releases)"
         required: false
-        default: "stable"
+        default: "flippy"
         type: choice
         options:
           - stable
@@ -106,10 +106,10 @@ env:
   SOURCE_BRANCH: openwrt_main # = config/<dir>
   # ---- resolved inputs (a scheduled run has none: fall back to repository variables) ----
   OPENWRT_IP: ${{ inputs.openwrt_ip || vars.OPENWRT_IP || '10.10.10.1' }}
-  OPENWRT_BOARD: ${{ inputs.openwrt_board || vars.OPENWRT_BOARD || 's905d_s912-phicomm-t1_panther-x2' }}
-  OPENWRT_KERNEL: ${{ inputs.openwrt_kernel || vars.OPENWRT_KERNEL || '6.12.y_6.18.y' }}
+  OPENWRT_BOARD: ${{ inputs.openwrt_board || vars.OPENWRT_BOARD || 's905d_s912-phicomm-t1' }}
+  OPENWRT_KERNEL: ${{ inputs.openwrt_kernel || vars.OPENWRT_KERNEL || '6.12.y' }}
   REPACK_ONLY: ${{ inputs.repack_only && 'true' || 'false' }}
-  KERNEL_USAGE: ${{ inputs.kernel_usage || 'stable' }}
+  KERNEL_USAGE: ${{ inputs.kernel_usage || vars.KERNEL_USAGE || 'flippy' }}
   AUTO_KERNEL: ${{ github.event_name == 'workflow_dispatch' && !inputs.auto_kernel && 'false' || 'true' }}
   USE_CCACHE: ${{ github.event_name == 'workflow_dispatch' && !inputs.use_ccache && 'false' || 'true' }}
   OPENWRT_SIZE: ${{ inputs.openwrt_size || '256/1024' }}

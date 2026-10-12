@@ -31,8 +31,8 @@ LuCI 的 *Amlogic Service → Online Update* 同样可用（指向本仓库的 R
 ```
 
 * 只有一个 rootfs（上游是 p2/p3 两个互相替换，p4 才是数据）。数据分区变成 **p3**（`/mnt/mmcblk*p3`），docker 的 data-root 在这里。
-* eMMC 安装：rootfs 默认 1536 MiB（`OPENWRT_ROOT_MB` 可改），boot 取机型原值但不小于镜像的 boot（256 MiB）；每机型的 bootloader 保留区（`BLANK1`、N1 的 800 MiB 禁区等）保持上游原值。
-* 以 Phicomm N1（8 GB eMMC）为例：数据分区约 5.6 GB（上游 A/B 布局约 4.0 GB）。
+* eMMC 安装：rootfs 默认 1024 MiB（`OPENWRT_ROOT_MB` 可改），boot 取机型原值但不小于镜像的 boot（256 MiB）；每机型的 bootloader 保留区（`BLANK1`、N1 的 800 MiB 禁区等）保持上游原值。
+* 以 Phicomm N1（8 GB eMMC）为例：数据分区约 6.1 GB（上游 A/B 布局约 4.0 GB）。
 * rootfs 比分区小时开机自动 `btrfs filesystem resize max /`（`/etc/init.d/ophub-resize`）。
 * 不能从上游的 4 分区布局原地迁移：用新镜像重新安装一次（先备份 `/etc` 和数据分区）。
 * 升级前先拔掉安装用的 U 盘/SD（两个 btrfs 会有相同的 UUID）。
@@ -69,8 +69,8 @@ Actions → **Build OpenWrt** → Run workflow：
 | 参数 | 说明 |
 | --- | --- |
 | `openwrt_ip` | 固件默认 LAN IP（**可选**，默认 `10.10.10.1`） |
-| `openwrt_board` | 机型，用 `_` 连接，如 `s905d_s912-phicomm-t1_panther-x2`；也可 `all` / `amlogic` / `rockchip` / `allwinner`。名字见 `make-openwrt/openwrt-files/common-files/etc/model_database.conf` 第 14 列 |
-| `openwrt_kernel` / `kernel_usage` / `auto_kernel` | ophub 内核系列与标签 |
+| `openwrt_board` | 机型，用 `_` 连接，如 `s905d_s912-phicomm-t1`；也可 `all` / `amlogic` / `rockchip` / `allwinner`。名字见 `make-openwrt/openwrt-files/common-files/etc/model_database.conf` 第 14 列 |
+| `openwrt_kernel` / `kernel_usage` / `auto_kernel` | ophub 内核系列与标签，默认 `6.12.y` + `flippy`（F 大） |
 | **`repack_only`** | 不编译，复用上一次的 rootfs 重新打包（改 IP / 机型 / 换新内核只要约 10 分钟，完整编译要 2–3 小时） |
 | `openwrt_size` | 镜像分区 `boot/rootfs`（MiB），默认 `256/1024` |
 | `openwrt_storage` | `save` 保留 / `temp` 临时 |
@@ -78,7 +78,7 @@ Actions → **Build OpenWrt** → Run workflow：
 `repack_only` 会重新应用本提交的 `files/` 覆盖层和安装/升级补丁，成品检查确保升级 hook 与本提交一致；不会重编软件包，包选择或源码改动仍须完整编译。
 
 每月 1 日 02:00 UTC 自动编译一次。定时任务用仓库变量（Settings → Secrets and variables → Actions → Variables）：
-`OPENWRT_IP`、`OPENWRT_BOARD`、`OPENWRT_KERNEL`；没设置就用上面的默认值（`s905d_s912-phicomm-t1_panther-x2`，`6.12.y_6.18.y`）。
+`OPENWRT_IP`、`OPENWRT_BOARD`、`OPENWRT_KERNEL`、`KERNEL_USAGE`；没设置就用上面的默认值（`s905d_s912-phicomm-t1`，`6.12.y` + `flippy`）。
 构建前会检查参数；打包后会打开每个镜像检查（`custom/scripts/verify-image.sh`：分区只有 p1/p2、没有被删的包、docker/HomeProxy 在、补丁已生效…），任何一项不过就不发布。
 只保留最近 6 个 release。
 

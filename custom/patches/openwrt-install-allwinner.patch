@@ -18,7 +18,7 @@
 -    ROOT2="960"
 +    # Single rootfs layout: p1 BOOT | p2 ROOTFS | p3 SHARE_DATA (rest of the disk).
 +    # (sysupgrade writes the image's p1/p2 as they are, so they must not be smaller than the image's)
-+    ROOT1="${OPENWRT_ROOT_MB:-1536}"
++    ROOT1="${OPENWRT_ROOT_MB:-1024}"
  
      # Format emmc disk
      echo -e "${INFO} Creating MBR partition table..."

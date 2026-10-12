@@ -9,8 +9,8 @@
 -ROOT2="1280"
 +# Single rootfs layout (no A/B pair): p1 BOOT | p2 ROOTFS | p3 shared data (rest of the disk).
 +# ROOT size (MiB): at least the size of the root partition of the image we are running from,
-+# default 1536 so later images may grow; override with: OPENWRT_ROOT_MB=2048 openwrt-install-amlogic ...
-+ROOT1="${OPENWRT_ROOT_MB:-1536}"
++# default 1024 so later images may grow; override with: OPENWRT_ROOT_MB=2048 openwrt-install-amlogic ...
++ROOT1="${OPENWRT_ROOT_MB:-1024}"
 +RUN_ROOT_MB="$(($(lsblk -b -n -d -o SIZE /dev/${ROOT_NAME} 2>/dev/null | head -n1) / 1048576))"
 +[[ "${ROOT1}" -lt "${RUN_ROOT_MB}" ]] && ROOT1="${RUN_ROOT_MB}"
 +[[ "${ROOT1}" -lt 1024 ]] && ROOT1="1024"
