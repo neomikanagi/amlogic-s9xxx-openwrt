@@ -2,6 +2,13 @@
 
 > Cursor / Claude Code / Pi 共用。换棒时在**最上面**追加一条。
 
+## 2026-10-13 — pi → 无（去 DDNS 构建挂因查明：ip-full 被当孤立包 drop，已加 keep 重编）
+
+- **状态：** 去 DDNS 的 Build `38277690985` 在 `Load custom configuration` 挂（7m，`required package is missing: ip-full`）；已加 `#!keep ip-full` 并推送，需重触发全编译。真机未验收。
+- **改了：** `config.fragment` 加 `#!keep ip-full`（及注释）。DDNS 四项删除与 forbid 不变。
+- **为什么·思路：** 日志显示 `ip-full (was needed by: ddns-scripts)` 被 `prune-orphans.py` 当孤立包 drop，连带 `libbpf`/`libelf`。脚本只认上游已选包之间的依赖：上游里 ip-full 唯一的已选用户就是 ddns-scripts，而 HomeProxy（fragment 后加的）它看不见，所以 ddns 一删就误杀。`#!keep` 就是为这种“上游/别家也依赖、但我们自己要点名要的包”准备的（ precedent：`#!keep attr`）。keep 住 ip-full 后 libbpf/libelf 的用户还在，不会再被 drop；其余 drop 项（dbus、libcap、ucode-mod-math 等）无 require 命中，不管。
+- **请你：** 重触发全编译后看 `fragment applied` / `attached packages dropped` 里不再有 ip-full，且 `config OK` 通过；再看 N1/T1 镜像。不要还原：DDNS 四项 not set + forbid、`#!keep ip-full`。
+
 ## 2026-10-13 — pi → 无（补删动态 DNS，已触发重编）
 
 - **状态：** 已补删并推送，旧含 DDNS 的 Build `38252904963`（2h38m 成功）作废；新全编译已触发，真机未验收。

@@ -55,6 +55,9 @@
 
 # Chosen on purpose by upstream, although samba/ttyd depended on them as well.
 #!keep attr
+# ip-full is required below (HomeProxy's tun route), although ddns-scripts depended on it too.
+# Without this, prune-orphans drops ip-full (plus libbpf/libelf) once ddns-scripts is gone.
+#!keep ip-full
 
 # ------------------------------------------------------------------- added ---
 # Docker (data root goes to the data partition p3, see openwrt-install-amlogic / openwrt-tf)
